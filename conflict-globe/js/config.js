@@ -37,6 +37,7 @@ export const PROXY_HOSTS = [
   "api.gdeltproject.org",
   "api.adsb.lol",
   "api.airplanes.live",
+  "retrieve.pskreporter.info",
 ];
 
 // ---------------------------------------------------------------------------

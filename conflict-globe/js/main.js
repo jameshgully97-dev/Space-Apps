@@ -3,10 +3,13 @@
 import { CATEGORIES, CAMEO_NAMES } from "./config.js";
 import { settings } from "./settings.js";
 import { routeFor } from "./net.js";
-import { legendIcon, sprites } from "./sprites.js";
+import { legendIcon, sprites, radioSprite } from "./sprites.js";
 import { GdeltFeed } from "./feeds/gdelt.js";
 import { AircraftFeed } from "./feeds/adsb.js";
-import { demoEvents, demoAircraft } from "./feeds/demo.js";
+import { demoEvents, demoAircraft, demoRadioReports } from "./feeds/demo.js";
+import { PskReporterFeed } from "./feeds/pskreporter.js";
+import { RadioLayer, BAND_COLORS } from "./layers/radio.js";
+import * as ghost from "./ghostnet/plan.js";
 import { EventLayer } from "./layers/events.js";
 import { UnitLayer } from "./layers/units.js";
 import { AircraftLayer } from "./layers/aircraft.js";
@@ -94,6 +97,7 @@ const eventLayer = new EventLayer(viewer);
 const unitLayer = new UnitLayer(viewer, () => eventLayer.all());
 const aircraftLayer = new AircraftLayer(viewer);
 window.__ac = aircraftLayer; // debugging hook
+const radioLayer = new RadioLayer(viewer);
 sprites(); // pre-render sprite frames
 
 let events = [];
@@ -120,6 +124,8 @@ function cameraPoint() {
 }
 
 const demo = settings.get("demo");
+let ghostStatus = { state: demo ? "ok" : "idle", text: demo ? "simulated" : "waiting" };
+const freq = (khz) => (khz >= 1000 ? (khz / 1000).toFixed(khz % 1 ? 4 : 3) + " MHz" : khz + " kHz");
 let aircraftFeed = null;
 if (demo) {
   showBanner("<b>DEMO MODE</b> — all events and aircraft shown are <b>simulated</b>. Turn off in Settings for live data.", "demo");
@@ -139,7 +145,13 @@ if (demo) {
   step();
   setInterval(step, 2000);
   setChip("#chip-nearby", { state: "idle", text: "demo" }, "—");
+  radioLayer.setReports(demoRadioReports());
+  setChip("#chip-ghost", { state: "ok", text: "simulated" }, radioLayer.summary().tx);
 } else {
+  new PskReporterFeed({
+    onData: (reports) => { radioLayer.setReports(reports); renderGhost(); },
+    onStatus: (st) => { ghostStatus = st; setChip("#chip-ghost", st, st.state === "ok" ? radioLayer.summary().tx : "—"); renderGhost(); },
+  }).start();
   new GdeltFeed({
     onData: onEvents,
     onStatus: (st) => {
@@ -187,10 +199,11 @@ function applySetting(k, v) {
     case "showNearbyAir": aircraftLayer.setCivil(v); if (aircraftFeed) aircraftFeed.enabled.nearby = v; break;
     case "showLabels": aircraftLayer.setLabels(v); break;
     case "showBorders": borders.show = v; break;
+    case "showRadio": radioLayer.setVisible(v); break;
     case "hiddenCats": eventLayer.setHiddenCategories(v); unitLayer.setHiddenCategories(v); renderFeed(); break;
   }
 }
-for (const k of ["showEvents", "showUnits", "showMilAir", "showNearbyAir", "showLabels", "showBorders", "hiddenCats"]) applySetting(k, settings.get(k));
+for (const k of ["showEvents", "showUnits", "showMilAir", "showNearbyAir", "showLabels", "showBorders", "showRadio", "hiddenCats"]) applySetting(k, settings.get(k));
 settings.onChange(applySetting);
 
 document.querySelectorAll("[data-set]").forEach((el) => {
@@ -367,8 +380,8 @@ $("#info-close").onclick = () => {
 const handler = new C.ScreenSpaceEventHandler(viewer.canvas);
 handler.setInputAction((click) => {
   // Aircraft sit above markers in priority so overlapping symbols stay clickable.
-  const hits = scene.drillPick(click.position, 6);
-  const picked = hits.find((h) => h.id?.kind === "aircraft") || hits[0];
+  const hits = scene.drillPick(click.position, 12);
+  const picked = hits.find((h) => h.id?.kind === "aircraft") || hits.find((h) => h.id?.kind === "radio") || hits[0];
   const id = picked?.id;
   if (!id) return;
   if (id instanceof C.Entity && id._cg?.kind === "event") return selectEvent(eventLayer.get(id._cg.key));
@@ -380,6 +393,7 @@ handler.setInputAction((click) => {
   }
   if (id.kind === "event" && eventLayer.get(id.key)) return selectEvent(eventLayer.get(id.key));
   if (id.kind === "aircraft" && aircraftLayer.get(id.hex)) return selectAircraft(aircraftLayer.get(id.hex));
+  if (id.kind === "radio" && radioLayer.get(id.call)) return selectRadio(radioLayer.get(id.call));
 }, C.ScreenSpaceEventType.LEFT_CLICK);
 
 handler.setInputAction((move) => {
@@ -409,6 +423,10 @@ tickClock();
 // legend
 const legend = $("#legend-body");
 legend.innerHTML = Object.entries(CATEGORIES).map(([k, c]) => `<div class="li"><img alt="" src="${legendIcon(k, c.color, c.glyph)}">${esc(c.label)}</div>`).join("")
+  + `<div class="sep">GhostNet HF radio (JS8Call)</div>`
+  + Object.entries(BAND_COLORS).map(([b, c]) => `<div class="li"><img alt="" src="${radioSprite(c).toDataURL()}">Station heard on ${b}</div>`).join("")
+  + `<div class="li"><img alt="" src="${radioSprite("#9aa7b4").toDataURL()}">Receiving station</div>`
+  + `<div class="li"><img alt="" src="${radioSprite("#9ef01a", true).toDataURL()}">Known HFN ALE net address</div>`
   + `<div class="sep">Live aircraft (ADS-B)</div>`
   + ["fighter", "transport", "tanker", "helicopter", "drone", "bomber", "civil"].map((k) => `<div class="li"><img alt="" src="${sprites()["ac_" + k][0].canvas.toDataURL()}">${k[0].toUpperCase() + k.slice(1)}</div>`).join("");
 $("#legend-toggle").onclick = () => $("#legend").classList.toggle("collapsed");
@@ -419,7 +437,16 @@ const feedBtn = $("#btn-feed");
 feedBtn.setAttribute("aria-pressed", "true");
 feedBtn.onclick = () => feedBtn.setAttribute("aria-pressed", String(!$("#feed").classList.toggle("collapsed")));
 if (innerWidth < 760) feedBtn.click();
-$("#btn-layers").onclick = () => { const p = $("#layers"); p.hidden = !p.hidden; $("#btn-layers").setAttribute("aria-pressed", String(!p.hidden)); };
+function togglePopover(id, btn) {
+  for (const [pid, bid] of [["#layers", "#btn-layers"], ["#ghost", "#btn-ghost"]]) {
+    const open = pid === id ? $(pid).hidden : false;
+    $(pid).hidden = !open;
+    $(bid).setAttribute("aria-pressed", String(open));
+  }
+  if (id === "#ghost" && !$("#ghost").hidden) renderGhost();
+}
+$("#btn-layers").onclick = () => togglePopover("#layers");
+$("#btn-ghost").onclick = () => togglePopover("#ghost");
 $("#btn-about").onclick = () => $("#dlg-about").showModal();
 $("#btn-full").onclick = () => (document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen());
 
@@ -447,9 +474,71 @@ addEventListener("keydown", (e) => {
   if (e.target.matches("input, select, textarea")) return;
   if (e.key === "f") feedBtn.click();
   if (e.key === "l") $("#btn-layers").click();
+  if (e.key === "g") $("#btn-ghost").click();
   if (e.key === "Escape") $("#info-close").click();
   if (e.key === "h") viewer.homeButton.viewModel.command();
 });
+
+// ------------------------------------------------------------------ GhostNet panel
+
+function renderGhost() {
+  const now = new Date();
+  const active = ghost.activeWindows(now);
+  const chip = $("#chip-ghost");
+  chip.dataset.onair = String(active.length > 0);
+  if (active.length) chip.querySelector("b").textContent = "ON AIR";
+  else if (ghostStatus.state === "ok") chip.querySelector("b").textContent = radioLayer.summary().tx;
+  if ($("#ghost").hidden) return;
+
+  // Next start of each net, deduplicated.
+  const seen = new Set();
+  const next = ghost.upcomingWindows(now, 40).filter((w) => !seen.has(w.net) && seen.add(w.net)).slice(0, 4);
+  $("#ghost-now").innerHTML = (active.length
+    ? active.map((w) => `<div class="onair"><b class="flag">● ON AIR NOW</b><br><b>${esc(w.net)}</b><br>${esc(w.mode)}${w.khz ? ` · <span class="mono">${freq(w.khz)}</span>` : ""} · ends in ${ghost.fmtDuration(w.endsIn)}${w.note ? `<br><span class="muted small">${esc(w.note)}</span>` : ""}</div>`).join("")
+    : `<div class="offair muted">No GhostNet comm window is active right now.</div>`)
+    + `<table><tr><th>Next</th><th>Starts (UTC)</th><th>In</th></tr>${next.map((w) => `<tr><td>${esc(w.net)}</td><td class="mono">${ghost.dayName(w.day)} ${w.start}Z</td><td>${ghost.fmtDuration(w.startsIn)}</td></tr>`).join("")}</table>`;
+
+  const sum = radioLayer.summary();
+  $("#ghost-live").innerHTML = `
+    <div style="margin-top:10px"><b>Live JS8Call activity</b> <span class="muted small">— ${esc(ghostStatus.text)}</span></div>
+    <div class="ghost-live">${["80m", "40m", "20m"].map((b) => `<div style="border-color:${BAND_COLORS[b]}55"><b style="color:${BAND_COLORS[b]}">${sum.byBand[b]}</b>${b} · ${freq(ghost.JS8_DIALS.find((d) => d.band === b).khz)}</div>`).join("")}</div>
+    <div class="muted small">${sum.tx} transmitting station${sum.tx === 1 ? "" : "s"} (${sum.recent} in last 15 min), ${sum.total} total incl. receivers, last hour.</div>`;
+
+  if (!$("#ghost-sched").dataset.done) {
+    $("#ghost-sched").dataset.done = "1";
+    $("#ghost-sched").innerHTML = `<table><tr><th>Net</th><th>When</th><th>Mode / freq</th></tr>${ghost.WINDOWS.map((w) => `<tr><td>${esc(w.net)}</td><td class="mono">${ghost.dayName(w.day)} ${w.start}–${w.end}</td><td>${esc(w.mode)}${w.khz ? `<br><span class="mono">${freq(w.khz)}</span>` : ""}</td></tr>`).join("")}</table>
+      <p class="muted small">GhostNet North America runs Friday 0100Z, which is Thursday evening in North America.</p>`;
+    $("#ghost-freqs").innerHTML = `<table><tr><th>JS8Call dial</th><th>Use</th></tr>${ghost.JS8_DIALS.map((d) => `<tr><td class="mono">${freq(d.khz)} (${d.band})</td><td>${esc(d.use)}</td></tr>`).join("")}
+      ${ghost.OTHER_FREQS.map((d) => `<tr><td class="mono">${freq(d.khz)}</td><td>${esc(d.mode)} — ${esc(d.use)}</td></tr>`).join("")}</table>
+      <table><tr><th>ALE channel (USB)</th><th>Freq</th></tr>${ghost.ALE_CHANNELS.map((c) => `<tr><td class="mono">${c.name}</td><td class="mono">${freq(c.khz)}</td></tr>`).join("")}</table>`;
+    $("#ghost-groups").innerHTML = `<table>${ghost.GROUPS.map(([g, d]) => `<tr><td class="mono">${esc(g)}</td><td>${esc(d)}</td></tr>`).join("")}</table>`;
+    $("#ghost-src").href = ghost.GHOSTNET_URL;
+    $("#ghost-attr").innerHTML = `${esc(ghost.GHOSTNET_ATTRIBUTION)}. Live reports: <a href="https://pskreporter.info" target="_blank" rel="noopener">PSKReporter</a>. Hearing a station on these frequencies does not mean it is part of GhostNet.`;
+  }
+}
+setInterval(renderGhost, 30000);
+renderGhost();
+
+function selectRadio(s) {
+  selectedKey = null;
+  aircraftLayer.selected = null;
+  followHex = null;
+  const sim = s.call.startsWith("SIM");
+  $("#info-body").innerHTML = `
+    <span class="tag" style="background:${s.tx ? BAND_COLORS[[...s.bands][0]] : "#9aa7b4"}">GhostNet frequency · JS8Call</span>
+    <h3>${esc(s.call)}</h3>
+    <div class="sub">${s.tx ? "Heard transmitting" : "Receiving station"} · grid ${esc(s.grid)}${s.member ? " · <b style=\"color:#ffd700\">HFN ALE net address</b>" : ""}</div>
+    <dl>
+      <dt>Bands</dt><dd>${[...s.bands].join(", ")}</dd>
+      ${s.tx ? `<dt>Last frequency</dt><dd class="mono">${(s.lastHz / 1e6).toFixed(6)} MHz</dd><dt>Heard by</dt><dd>${s.heardBy.size} station${s.heardBy.size === 1 ? "" : "s"}</dd><dt>Best SNR</dt><dd>${s.bestSnr ?? "—"} dB</dd>` : ""}
+      ${s.heard.size ? `<dt>Decoded</dt><dd>${s.heard.size} transmitting station${s.heard.size === 1 ? "" : "s"}</dd>` : ""}
+      <dt>Last report</dt><dd>${ago(s.last)}</dd>
+      <dt>Location</dt><dd>${s.lat.toFixed(2)}, ${s.lon.toFixed(2)} <span class="muted">(grid square centre)</span></dd>
+    </dl>
+    <div class="btns">${sim ? "" : `<a class="ghost" href="https://pskreporter.info/pskmap.html?preset&callsign=${encodeURIComponent(s.call)}&mode=JS8" target="_blank" rel="noopener">PSKReporter map ↗</a>`}</div>
+    <p class="note">${sim ? "Simulated station (demo mode)." : "From automatic PSKReporter reception reports. Being heard on a GhostNet frequency does not mean this station is taking part in GhostNet."}</p>`;
+  $("#info").hidden = false;
+}
 
 // ------------------------------------------------------------------ PWA install (Windows: installs as a desktop app)
 let deferredPrompt = null;

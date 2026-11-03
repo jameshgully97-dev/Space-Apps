@@ -424,3 +424,36 @@ export function clusterSprite(count) {
 export function legendIcon(cat, color, glyph) {
   return markerSprite(cat, color, glyph).toDataURL();
 }
+
+// --------------------------------------------------------------- radio station (GhostNet)
+const radioCache = new Map();
+/** Radio mast with signal arcs; `member` adds a gold ring (known HFN ALE net address). */
+export function radioSprite(color, member = false) {
+  const key = color + member;
+  if (radioCache.has(key)) return radioCache.get(key);
+  const c = canvas(64);
+  const ctx = c.getContext("2d");
+  ctx.beginPath();
+  ctx.arc(32, 32, 27, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(10,14,18,0.8)";
+  ctx.fill();
+  ctx.lineWidth = member ? 4 : 2.5;
+  ctx.strokeStyle = member ? "#ffd700" : color;
+  ctx.stroke();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+  // mast
+  ctx.beginPath();
+  ctx.moveTo(32, 26); ctx.lineTo(24, 50); ctx.moveTo(32, 26); ctx.lineTo(40, 50); ctx.moveTo(27, 42); ctx.lineTo(37, 42);
+  ctx.stroke();
+  ctx.beginPath(); ctx.arc(32, 24, 3.5, 0, Math.PI * 2); ctx.fill();
+  // signal arcs
+  ctx.lineWidth = 2.5;
+  for (const r of [9, 15]) {
+    ctx.beginPath(); ctx.arc(32, 24, r, -Math.PI * 0.85, -Math.PI * 0.15); ctx.stroke();
+  }
+  radioCache.set(key, c);
+  return c;
+}

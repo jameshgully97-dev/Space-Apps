@@ -21,10 +21,23 @@ Click an event to see its type, place, actors and links to the source articles.
 | Conflict events | [GDELT 2.0](https://www.gdeltproject.org/) | ~15 min | Machine-coded world news (CAMEO codes 15x/18x/19x/20x), geolocated to where the article places the action. Country-level geocodes are dropped and duplicate reports are merged. |
 | Military aircraft | [adsb.lol](https://adsb.lol), falls back to [airplanes.live](https://airplanes.live) | ~1 to 10 s | Real ADS-B positions of aircraft flagged as military, worldwide. |
 | All aircraft near the view | Same | ~1 to 10 s | Every transponder within 250 nm of the view centre, when zoomed in. |
+| GhostNet plan | [GhostNet v1.5](https://github.com/s2underground/GhostNet) by S2 Underground | static | Off-grid HF radio net schedule, JS8Call / RTTY / voice frequencies, ALE channel plan and JS8 groups. |
+| GhostNet radio activity | [PSKReporter](https://pskreporter.info) | 5 min | Automatic JS8Call reception reports on GhostNet frequencies (3.575 / 7.107 / 14.107 MHz), located to their Maidenhead grid square. |
 
 * **The soldiers, tanks, artillery, jets, drones and ships around an event are symbolic.** They show the *type* of the reported event at its reported location. No public source publishes the live positions of individual troops or vehicles, and this app doesn't try to.
 * GDELT coding is automated. It can misclassify events, duplicate them, or pick up articles about past events. Check the source articles before relying on any single marker.
 * Many military aircraft fly without transponders over active war zones, so air coverage there is partial.
+
+## GhostNet HF radio (📻)
+
+The 📻 button opens the GhostNet panel. It shows:
+* whether a GhostNet comms window is **on air right now**, with countdowns to the next nets
+* live JS8Call activity per band
+* the full weekly schedule in UTC, the JS8Call/RTTY/voice frequencies, the 27-channel ALE plan from the GhostNet codeplug, and the JS8Call group names
+
+On the globe, stations heard on GhostNet JS8 frequencies appear as radio masts, coloured by band. The HF paths between transmitter and receiver are drawn as arcs. A gold ring marks a callsign on the HFN ALE net list. Being heard on these frequencies does **not** mean a station is taking part in GhostNet. The 80 m range can also catch ordinary JS8 traffic near 3.578 MHz.
+
+GhostNet material is © S2 Underground under [CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). The plan data in `js/ghostnet/plan.js` is derived from it, so that file is for non-commercial use under the same licence.
 
 ## Running on Windows
 
@@ -49,7 +62,7 @@ Without keys you get Esri World Imagery (satellite) with NASA Black Marble city 
 
 ## Controls
 
-Drag to rotate, scroll to zoom, right-drag or Ctrl-drag to tilt. Keys: `F` feed panel, `L` layers, `H` home, `Esc` close details.
+Drag to rotate, scroll to zoom, right-drag or Ctrl-drag to tilt. Keys: `F` feed panel, `L` layers, `G` GhostNet panel, `H` home, `Esc` close details.
 
 ## Project layout
 
@@ -59,8 +72,9 @@ js/main.js                  viewer setup, UI wiring, selection, follow mode
 js/config.js                endpoints, CAMEO → category, ICAO type → silhouette
 js/net.js                   CORS-aware fetch routing, tiny ZIP reader
 js/sprites.js               all artwork, drawn procedurally on canvas
-js/feeds/                   GDELT, ADS-B, demo data
-js/layers/                  event markers, animated unit scenes, aircraft
+js/feeds/                   GDELT, ADS-B, PSKReporter, demo data
+js/ghostnet/plan.js         GhostNet schedule, frequencies, ALE channels
+js/layers/                  event markers, unit scenes, aircraft, radio
 server.ps1 / server.js      local server and feed proxy
 ConflictGlobe.cmd           Windows launcher
 sw.js, manifest.webmanifest installable PWA

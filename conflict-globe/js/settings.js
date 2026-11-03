@@ -15,6 +15,7 @@ const DEFAULTS = {
   showEvents: true,
   showUnits: true,
   showBorders: true,
+  showRadio: true,
   demo: false,
   hiddenCats: [],
 };

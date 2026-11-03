@@ -14,7 +14,7 @@ param(
 $ErrorActionPreference = 'Stop'
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
-$AllowedHosts = @('data.gdeltproject.org', 'api.gdeltproject.org', 'api.adsb.lol', 'api.airplanes.live')
+$AllowedHosts = @('data.gdeltproject.org', 'api.gdeltproject.org', 'api.adsb.lol', 'api.airplanes.live', 'retrieve.pskreporter.info')
 $Mime = @{
   '.html' = 'text/html; charset=utf-8'; '.js' = 'text/javascript; charset=utf-8'; '.css' = 'text/css; charset=utf-8'
   '.json' = 'application/json'; '.webmanifest' = 'application/manifest+json'; '.svg' = 'image/svg+xml'
@@ -40,7 +40,7 @@ function Proxy($ctx, [string]$target) {
   try { $uri = [Uri]$target } catch { return SendText $ctx 400 'bad url' }
   if ($AllowedHosts -notcontains $uri.Host) { return SendText $ctx 403 "host not allowed: $($uri.Host)" }
   # GDELT archives never change; aircraft snapshots are cached for 2 s to respect rate limits.
-  $ttl = if ($target -match '\.zip$') { 3600 } elseif ($target -match 'lastupdate') { 60 } else { 2 }
+  $ttl = if ($target -match '\.zip$') { 3600 } elseif ($target -match 'lastupdate') { 60 } elseif ($target -match 'pskreporter') { 300 } else { 2 }
   $hit = $Cache[$target]
   if ($hit -and ((Get-Date) - $hit.At).TotalSeconds -lt $ttl) { return Send $ctx 200 $hit.Type $hit.Bytes }
   try {

@@ -51,3 +51,20 @@ export function demoAircraft() {
   }
   return list;
 }
+
+/** Simulated GhostNet JS8 reception reports (callsigns are fictitious "SIM" calls). */
+export function demoRadioReports() {
+  const r = rng(99);
+  const grids = ["FN31", "EM73", "DM79", "CN87", "EN52", "FM18", "EL29", "DN70", "JO62", "IO91", "JN58", "KO85", "QF56", "QF22", "PF95", "RF73"];
+  const dials = [[7107, "40m"], [14107, "20m"], [3575, "80m"]];
+  const out = [];
+  const now = Date.now();
+  for (let i = 0; i < 160; i++) {
+    const a = grids[Math.floor(r() * grids.length)], b = grids[Math.floor(r() * grids.length)];
+    if (a === b) continue;
+    const [khz, band] = dials[Math.floor(r() * (r() < 0.6 ? 1 : 3))];
+    const sq = (g) => g + String.fromCharCode(65 + Math.floor(r() * 24)) + String.fromCharCode(65 + Math.floor(r() * 24));
+    out.push({ tx: `SIM${Math.floor(r() * 40)}`, txGrid: sq(a), rx: `SIMRX${Math.floor(r() * 60)}`, rxGrid: sq(b), hz: khz * 1000 + 800 + Math.floor(r() * 2000), dial: khz, band, snr: Math.round(-24 + r() * 30), time: now - Math.floor(r() * 3600e3) });
+  }
+  return out;
+}

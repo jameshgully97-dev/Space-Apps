@@ -27,9 +27,11 @@
       <span class="chip" id="chip-events" title="News-reported conflict events (GDELT 2.0)"><i></i>Events <b>—</b></span>
       <span class="chip" id="chip-mil" title="Military aircraft broadcasting ADS-B, worldwide"><i></i>Mil air <b>—</b></span>
       <span class="chip" id="chip-nearby" title="All aircraft within 250 nm of the view centre"><i></i>Nearby air <b>—</b></span>
+      <span class="chip" id="chip-ghost" title="GhostNet JS8Call stations heard in the last hour (PSKReporter)"><i></i>GhostNet <b>—</b></span>
     </div>
     <nav class="actions">
       <button id="btn-feed" class="icon-btn" title="Event feed" aria-label="Event feed">☰</button>
+      <button id="btn-ghost" class="icon-btn" title="GhostNet HF radio" aria-label="GhostNet HF radio">📻</button>
       <button id="btn-layers" class="icon-btn" title="Layers" aria-label="Layers">◧</button>
       <button id="btn-settings" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
       <button id="btn-about" class="icon-btn" title="About the data" aria-label="About the data">ⓘ</button>
@@ -58,6 +60,7 @@
     <label class="toggle"><input type="checkbox" data-set="showNearbyAir"> All aircraft near view</label>
     <label class="toggle"><input type="checkbox" data-set="showLabels"> Aircraft ID labels</label>
     <label class="toggle"><input type="checkbox" data-set="showBorders"> Borders &amp; place names</label>
+    <label class="toggle"><input type="checkbox" data-set="showRadio"> GhostNet radio activity</label>
     <div class="row">
       <label for="sel-history">Event window</label>
       <select id="sel-history" data-set="historyHours" data-num>
@@ -71,6 +74,16 @@
         <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option>
       </select>
     </div>
+  </section>
+
+  <section id="ghost" class="panel popover ghost" hidden>
+    <div class="panel-head"><h3>GhostNet HF radio</h3><a id="ghost-src" target="_blank" rel="noopener" class="muted small">v1.5 ↗</a></div>
+    <div id="ghost-now"></div>
+    <div id="ghost-live"></div>
+    <details><summary>Weekly schedule (UTC)</summary><div id="ghost-sched"></div></details>
+    <details><summary>Frequencies &amp; ALE channels</summary><div id="ghost-freqs"></div></details>
+    <details><summary>JS8Call groups</summary><div id="ghost-groups"></div></details>
+    <p class="muted small" id="ghost-attr"></p>
   </section>
 
   <aside id="info" class="panel" hidden>
@@ -121,6 +134,11 @@
         (<a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>, <a href="https://airplanes.live" target="_blank" rel="noopener">airplanes.live</a>),
         drawn with a silhouette matching the reported ICAO aircraft type. Many military aircraft fly without transponders over
         active war zones, so coverage there is partial.</p>
+      <p><b>GhostNet</b> is S2 Underground's plan for off-grid HF radio nets (<a href="https://github.com/s2underground/GhostNet" target="_blank" rel="noopener">GhostNet v1.5</a>,
+        CC BY-NC-SA 4.0). The 📻 panel shows its schedule, frequencies and which comms window is on air. Stations shown on the globe are JS8Call
+        reception reports on GhostNet frequencies from <a href="https://pskreporter.info" target="_blank" rel="noopener">PSKReporter</a>, refreshed every
+        5 minutes and located to their Maidenhead grid square. Being heard on a GhostNet frequency does not mean a station is taking part in GhostNet;
+        80 m reports can include ordinary JS8 traffic near 3.578 MHz.</p>
       <p><b>Imagery</b>: Esri World Imagery, NASA Black Marble night lights, Natural Earth II, and optionally Google Photorealistic 3D Tiles.</p>
       <menu><button class="primary">Close</button></menu>
     </form>

@@ -9,7 +9,7 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = fileURLToPath(new URL(".", import.meta.url));
 const PORT = Number(process.argv[2] || process.env.PORT || 8787);
-const ALLOWED = new Set(["data.gdeltproject.org", "api.gdeltproject.org", "api.adsb.lol", "api.airplanes.live"]);
+const ALLOWED = new Set(["data.gdeltproject.org", "api.gdeltproject.org", "api.adsb.lol", "api.airplanes.live", "retrieve.pskreporter.info"]);
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
   ".json": "application/json", ".webmanifest": "application/manifest+json", ".svg": "image/svg+xml", ".png": "image/png", ".txt": "text/plain" };
 const cache = new Map();
@@ -23,7 +23,7 @@ async function proxy(res, target) {
   let u;
   try { u = new URL(target); } catch { return send(res, 400, "text/plain", "bad url"); }
   if (!ALLOWED.has(u.host)) return send(res, 403, "text/plain", `host not allowed: ${u.host}`);
-  const ttl = target.endsWith(".zip") ? 3600e3 : target.includes("lastupdate") ? 60e3 : 2e3;
+  const ttl = target.endsWith(".zip") ? 3600e3 : target.includes("lastupdate") ? 60e3 : target.includes("pskreporter") ? 300e3 : 2e3;
   const hit = cache.get(target);
   if (hit && Date.now() - hit.at < ttl) return send(res, 200, hit.type, hit.body);
   try {
