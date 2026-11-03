@@ -2,13 +2,18 @@
 // 15 minutes into CAMEO events with a geolocated "action" point. We pull the
 // raw export files, keep the conflict-related codes (CAMEO 15x/18x/19x/20x)
 // and merge duplicate reports of the same event type at the same place.
+//
+// Each event is also classified by WHO initiated it (military, armed group,
+// police, unattributed) from GDELT's actor-type codes — see forceOfActor().
+// The violence code alone never makes an event "military".
 
-import { ENDPOINTS, categoryForCameo, CAMEO_NAMES } from "../config.js";
+import { ENDPOINTS, categoryForCameo, CAMEO_NAMES, forceOfActor } from "../config.js";
 import { smartFetch, unzipFirstFile } from "../net.js";
 import { settings } from "../settings.js";
 
 const COL = {
-  id: 0, actor1: 6, actor1Country: 7, actor2: 16, root: 25, code: 26, base: 27, rootCode: 28,
+  id: 0, actor1Code: 5, actor1: 6, actor1Country: 7, actor1Types: [12, 13, 14],
+  actor2Code: 15, actor2: 16, actor2Types: [22, 23, 24], root: 25, code: 26, base: 27, rootCode: 28,
   goldstein: 30, mentions: 31, sources: 32, articles: 33, tone: 34,
   geoType: 51, geoName: 52, geoCountry: 53, lat: 56, lon: 57, added: 59, url: 60,
 };
@@ -40,6 +45,9 @@ export function parseGdelt(tsv) {
       id: f[COL.id], code, cat, lat, lon, geoType,
       place: f[COL.geoName], country: f[COL.geoCountry],
       actor1: f[COL.actor1], actor2: f[COL.actor2],
+      // The force is the initiating actor's; the other actor is only the target.
+      force: forceOfActor(f[COL.actor1Code], COL.actor1Types.map((i) => f[i])),
+      target: f[COL.actor2Code] || f[COL.actor2] ? forceOfActor(f[COL.actor2Code], COL.actor2Types.map((i) => f[i])) : null,
       sources: +f[COL.sources] || 1, mentions: +f[COL.mentions] || 1,
       goldstein: +f[COL.goldstein], tone: +f[COL.tone],
       time: parseStamp(f[COL.added]), url: f[COL.url],
@@ -52,11 +60,12 @@ export function parseGdelt(tsv) {
 export function aggregate(records) {
   const groups = new Map();
   for (const r of records) {
-    const key = `${r.lat.toFixed(2)},${r.lon.toFixed(2)},${r.code}`;
+    // Force is part of the key so military and police reports never merge.
+    const key = `${r.lat.toFixed(2)},${r.lon.toFixed(2)},${r.code},${r.force}`;
     let g = groups.get(key);
     if (!g) {
       g = {
-        key, id: "g" + r.id, cat: r.cat, code: r.code, title: CAMEO_NAMES[r.code] || CAMEO_NAMES[r.code.slice(0, 3)] || `CAMEO ${r.code}`,
+        key, id: "g" + r.id, cat: r.cat, code: r.code, force: r.force, targets: new Set(), title: CAMEO_NAMES[r.code] || CAMEO_NAMES[r.code.slice(0, 3)] || `CAMEO ${r.code}`,
         lat: r.lat, lon: r.lon, place: r.place, country: r.country, precision: r.geoType,
         actors: new Set(), urls: new Set(), reports: 0, mentions: 0, first: r.time, last: r.time, source: "GDELT",
       };
@@ -64,13 +73,14 @@ export function aggregate(records) {
     }
     g.reports += 1;
     g.mentions += r.mentions;
+    if (r.target) g.targets.add(r.target);
     if (r.actor1) g.actors.add(r.actor1);
     if (r.actor2) g.actors.add(r.actor2);
     if (r.url && g.urls.size < 6) g.urls.add(r.url);
     g.first = Math.min(g.first, r.time);
     g.last = Math.max(g.last, r.time);
   }
-  return [...groups.values()].map((g) => ({ ...g, actors: [...g.actors].slice(0, 6), urls: [...g.urls] }));
+  return [...groups.values()].map((g) => ({ ...g, actors: [...g.actors].slice(0, 6), urls: [...g.urls], targets: [...g.targets] }));
 }
 
 export class GdeltFeed {

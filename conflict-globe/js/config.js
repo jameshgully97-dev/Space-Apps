@@ -41,18 +41,57 @@ export const PROXY_HOSTS = [
 ];
 
 // ---------------------------------------------------------------------------
-// Conflict categories. Every reported event is mapped to one of these, which
-// decides its marker colour and the animated units spawned when zoomed in.
+// WHO acted: the "force". Decided ONLY from the actor-type codes GDELT attaches
+// to the initiating actor (Actor1), never from the kind of violence. A violent
+// CAMEO code with no identified military actor is NOT a military event.
+// ---------------------------------------------------------------------------
+export const FORCES = {
+  military:     { label: "Military",                 short: "Military",     color: "#e5484d", desc: "Initiated by state armed forces (actor type MIL)." },
+  armed:        { label: "Armed group",              short: "Armed group",  color: "#f5a524", desc: "Initiated by rebels, insurgents, separatists or unaligned armed forces (REB / INS / SEP / UAF)." },
+  police:       { label: "Police / law enforcement", short: "Police",       color: "#3b82f6", desc: "Initiated by police or law enforcement (actor type COP)." },
+  unattributed: { label: "Unattributed / other",     short: "Unattributed", color: "#9aa4ae", desc: "No military, armed-group or police actor identified as the initiator: criminal, civilian, unknown or other." },
+};
+
+const FORCE_CODES = {
+  police: ["COP"],
+  military: ["MIL"],
+  armed: ["REB", "INS", "SEP", "UAF"],
+};
+
+/** Split a CAMEO actor code ("UKRMILREB") into its 3-letter segments. */
+function segments(code) {
+  const out = [];
+  for (let i = 0; i + 3 <= (code || "").length; i += 3) out.push(code.slice(i, i + 3));
+  return out;
+}
+
+/**
+ * Classify one actor from its CAMEO actor code and type codes.
+ * Precedence is deliberately conservative: any police marker wins over a
+ * military one (gendarmerie / military police acting as law enforcement),
+ * and "military" needs an explicit MIL code.
+ */
+export function forceOfActor(actorCode, typeCodes = []) {
+  const codes = new Set([...typeCodes.filter(Boolean), ...segments(actorCode)]);
+  for (const force of ["police", "military", "armed"]) {
+    if (FORCE_CODES[force].some((c) => codes.has(c))) return force;
+  }
+  return "unattributed";
+}
+
+// ---------------------------------------------------------------------------
+// WHAT happened: the action category, from the CAMEO event code. This sets the
+// marker glyph and the animated scene; it says nothing about who acted.
 // ---------------------------------------------------------------------------
 export const CATEGORIES = {
-  ground:   { label: "Ground combat / small arms", color: "#ff5a4f", glyph: "soldier" },
-  armor:    { label: "Armor & artillery",          color: "#ff9f1c", glyph: "tank" },
-  air:      { label: "Air strike",                 color: "#ffd23f", glyph: "jet" },
-  drone:    { label: "Drone strike",               color: "#c77dff", glyph: "drone" },
-  bombing:  { label: "Bombing / IED / shelling",   color: "#ff3d7f", glyph: "explosion" },
-  massviol: { label: "Mass violence",              color: "#b5179e", glyph: "fire" },
-  naval:    { label: "Naval / blockade",           color: "#4cc9f0", glyph: "ship" },
-  mobilize: { label: "Troop mobilization",         color: "#9ef01a", glyph: "column" },
+  ground:   { short: "Clash", label: "Armed clash / small arms",  color: "#ff5a4f", glyph: "soldier" },
+  armor:    { short: "Heavy weapons", label: "Artillery & heavy weapons", color: "#ff9f1c", glyph: "tank" },
+  air:      { short: "Air strike", label: "Air strike",                color: "#ffd23f", glyph: "jet" },
+  drone:    { short: "Drone", label: "Drone strike",              color: "#c77dff", glyph: "drone" },
+  bombing:  { short: "Bombing", label: "Bombing / IED / attack",    color: "#ff3d7f", glyph: "explosion" },
+  massviol: { short: "Mass violence", label: "Mass violence",             color: "#b5179e", glyph: "fire" },
+  naval:    { short: "Naval", label: "Naval / blockade",          color: "#4cc9f0", glyph: "ship" },
+  mobilize: { short: "Mobilization", label: "Mobilization / alert",      color: "#9ef01a", glyph: "column" },
 };
 
 // CAMEO event code (GDELT) -> category. Longest prefix wins.
@@ -80,13 +119,15 @@ export function categoryForCameo(code) {
   return null;
 }
 
+// Neutral wording: CAMEO's own labels say "military" for codes GDELT also
+// applies to police and criminal violence, so the actor is shown separately.
 export const CAMEO_NAMES = {
-  "150": "Military show of force", "152": "Military alert raised", "154": "Armed forces mobilized",
+  "150": "Show of force", "152": "Alert level raised", "154": "Forces mobilized",
   "180": "Unconventional violence", "181": "Abduction / hostage taking", "182": "Physical assault",
   "1821": "Sexual assault", "1822": "Torture", "1823": "Killing by physical assault",
   "183": "Bombing", "1831": "Suicide bombing", "1832": "Vehicular bombing", "1833": "Roadside bombing",
   "1834": "Location bombing", "184": "Use as human shield", "185": "Assassination attempt", "186": "Assassination",
-  "190": "Conventional military force", "191": "Blockade", "192": "Occupation of territory",
+  "190": "Use of force", "191": "Blockade", "192": "Occupation of territory",
   "193": "Small arms / light weapons fighting", "194": "Artillery and tank fighting",
   "195": "Aerial weapons", "1951": "Precision-guided aerial munitions", "1952": "Remotely piloted aerial munitions",
   "196": "Ceasefire violation", "200": "Unconventional mass violence", "201": "Mass expulsion",

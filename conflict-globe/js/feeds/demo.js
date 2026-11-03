@@ -8,7 +8,7 @@ const HOTSPOTS = [
   ["Simulated · Region J", 50.5, 36.2],
 ];
 const CATS = [["ground", "193"], ["armor", "194"], ["air", "195"], ["drone", "1952"], ["bombing", "183"], ["mobilize", "154"], ["massviol", "202"], ["naval", "191"]];
-const TITLES = { ground: "Small arms / light weapons fighting", armor: "Artillery and tank fighting", air: "Aerial weapons", drone: "Remotely piloted aerial munitions", bombing: "Bombing", mobilize: "Armed forces mobilized", massviol: "Mass killings", naval: "Blockade" };
+const TITLES = { ground: "Small arms / light weapons fighting", armor: "Artillery and tank fighting", air: "Aerial weapons", drone: "Remotely piloted aerial munitions", bombing: "Bombing", mobilize: "Forces mobilized", massviol: "Mass killings", naval: "Blockade" };
 
 function rng(seed) {
   let s = seed >>> 0;
@@ -25,8 +25,10 @@ export function demoEvents() {
     for (let i = 0; i < count; i++) {
       const [cat, code] = CATS[Math.floor(r() * CATS.length)];
       const t = now - Math.floor(r() * 3 * 3600e3);
+      const fr = r();
+      const force = fr < 0.45 ? "military" : fr < 0.65 ? "armed" : fr < 0.85 ? "police" : "unattributed";
       events.push({
-        key: `demo${n}`, id: `demo${n++}`, cat, code, title: TITLES[cat] + " (SIMULATED)",
+        key: `demo${n}`, id: `demo${n++}`, cat, code, force, targets: [], title: TITLES[cat] + " (SIMULATED)",
         lat: lat + (r() - 0.5) * 2.2, lon: lon + (r() - 0.5) * 2.8, place, country: "", precision: 4,
         actors: [], urls: [], reports: 1 + Math.floor(r() * 9), mentions: 1, first: t, last: t, source: "DEMO",
       });

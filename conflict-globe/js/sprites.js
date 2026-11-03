@@ -41,9 +41,17 @@ function flash(ctx, x, y, r) {
   ctx.fill();
 }
 
-// --------------------------------------------------------------- soldier
-// 6-frame walk cycle + firing frame, side view, facing right.
-function drawSoldier(frame, firing) {
+// --------------------------------------------------------------- figures
+// 6-frame walk cycle + firing frame, side view, facing right. Styles give
+// visibly different people: soldiers, irregular fighters, police officers.
+const FIGURE = {
+  soldier: { leg: "#3d4a2a", leg2: "#46542f", arm: "#4b5a33", torso: "#56663a", belt: "#2f3820", pack: "#4a5530", head: "#3f4d2b", cap: false, long: true },
+  fighter: { leg: "#3a3631", leg2: "#4a443d", arm: "#5b5148", torso: "#6b5f52", belt: "#2a2622", pack: "#4f463d", head: "#1d1d1d", cap: false, long: true, scarf: true },
+  police:  { leg: "#1b2740", leg2: "#22304f", arm: "#2a3b63", torso: "#2f4475", belt: "#111", pack: null, head: "#14203a", cap: true, long: false, vest: "#c8d400" },
+};
+
+function drawSoldier(frame, firing, style = "soldier") {
+  const st = FIGURE[style];
   const c = canvas();
   const ctx = c.getContext("2d");
   const t = (frame / 6) * Math.PI * 2;
@@ -61,40 +69,52 @@ function drawSoldier(frame, firing) {
     ctx.restore();
   };
   // back leg, back arm
-  limb(hipX, hipY, -swing, 18, 6, "#3d4a2a");
-  if (!firing) limb(hipX + 1, hipY - 14, swing * 0.8, 13, 5, "#4b5a33");
+  limb(hipX, hipY, -swing, 18, 6, st.leg);
+  if (!firing) limb(hipX + 1, hipY - 14, swing * 0.8, 13, 5, st.arm);
   // torso + webbing
   ctx.beginPath();
   ctx.roundRect(hipX - 6, hipY - 17, 12, 19, 4);
-  stroked(ctx, "#56663a", 1.8);
-  ctx.fillStyle = "#2f3820";
-  ctx.fillRect(hipX - 6, hipY - 9, 12, 3);
-  // backpack
-  ctx.beginPath();
-  ctx.roundRect(hipX - 11, hipY - 16, 6, 12, 2);
-  stroked(ctx, "#4a5530", 1.4);
+  stroked(ctx, st.torso, 1.8);
+  if (st.vest) { ctx.fillStyle = st.vest; ctx.fillRect(hipX - 5, hipY - 15, 10, 8); }
+  ctx.fillStyle = st.belt;
+  ctx.fillRect(hipX - 6, hipY - 7, 12, 3);
+  if (st.pack) {
+    ctx.beginPath();
+    ctx.roundRect(hipX - 11, hipY - 16, 6, 12, 2);
+    stroked(ctx, st.pack, 1.4);
+  }
   // front leg
-  limb(hipX, hipY, swing, 18, 6, "#46542f");
+  limb(hipX, hipY, swing, 18, 6, st.leg2);
   // head + helmet
   ctx.beginPath();
   ctx.arc(hipX + 1, hipY - 22, 5, 0, Math.PI * 2);
   stroked(ctx, "#c9a27a", 1.5);
-  ctx.beginPath();
-  ctx.ellipse(hipX + 1, hipY - 24, 7, 4.5, 0, Math.PI, 0);
-  ctx.lineTo(hipX + 8, hipY - 23);
-  ctx.closePath();
-  stroked(ctx, "#3f4d2b", 1.5);
-  // rifle (held across body, raised when firing)
+  if (st.cap) {
+    // peaked police cap
+    ctx.beginPath();
+    ctx.roundRect(hipX - 5, hipY - 30, 11, 5, 2);
+    stroked(ctx, st.head, 1.4);
+    ctx.fillStyle = "#111"; ctx.fillRect(hipX + 3, hipY - 26, 6, 2);
+    ctx.fillStyle = "#e0c25a"; ctx.fillRect(hipX - 1, hipY - 29, 3, 2);
+  } else {
+    ctx.beginPath();
+    ctx.ellipse(hipX + 1, hipY - 24, 7, 4.5, 0, Math.PI, 0);
+    ctx.lineTo(hipX + 8, hipY - 23);
+    ctx.closePath();
+    stroked(ctx, st.head, 1.5);
+  }
+  if (st.scarf) { ctx.fillStyle = "#7a2b2b"; ctx.fillRect(hipX - 3, hipY - 19, 9, 3); }
+  // weapon: long gun for soldiers/fighters, sidearm for police
   ctx.save();
   ctx.translate(hipX + 2, hipY - 12);
   ctx.rotate(firing ? -0.05 : 0.35 + swing * 0.1);
   ctx.fillStyle = "#1b1b1b";
-  ctx.fillRect(-4, -2, 22, 3);
-  ctx.fillRect(2, 0, 3, 5);
-  if (firing) flash(ctx, 23, -0.5, 7);
+  if (st.long) { ctx.fillRect(-4, -2, 22, 3); ctx.fillRect(2, 0, 3, 5); }
+  else if (firing) { ctx.fillRect(8, -2, 8, 3); ctx.fillRect(8, 0, 3, 4); }
+  if (firing) flash(ctx, st.long ? 23 : 17, -0.5, st.long ? 7 : 5);
   ctx.restore();
   // front arm
-  limb(hipX + 2, hipY - 14, firing ? -1.35 : -0.9 - swing * 0.2, 12, 5, "#56663a");
+  limb(hipX + 2, hipY - 14, firing ? -1.35 : -0.9 - swing * 0.2, 12, 5, st.torso);
   return c;
 }
 
@@ -335,6 +355,26 @@ function plane(kind, frame = 0, tint = "#d9dde2") {
   return c;
 }
 
+// --------------------------------------------------------------- police car (top-down)
+function drawPoliceCar(frame) {
+  const c = canvas(S);
+  const ctx = c.getContext("2d");
+  shadow(ctx, 33, 34, 12, 22);
+  ctx.beginPath(); ctx.roundRect(22, 10, 20, 44, 6); stroked(ctx, "#f2f4f7", 2);
+  ctx.fillStyle = "#1f3f8f"; ctx.fillRect(22, 26, 20, 12);           // blue livery band
+  ctx.fillStyle = "#2b3440"; ctx.beginPath(); ctx.roundRect(25, 15, 14, 7, 2); ctx.fill(); // windscreen
+  ctx.beginPath(); ctx.roundRect(25, 44, 14, 5, 2); ctx.fill();        // rear window
+  // light bar alternates red / blue
+  const left = frame % 2 === 0;
+  ctx.fillStyle = left ? "#ff2b2b" : "#5a1010"; ctx.fillRect(24, 23, 8, 3);
+  ctx.fillStyle = left ? "#10205a" : "#2f6bff"; ctx.fillRect(32, 23, 8, 3);
+  const glow = ctx.createRadialGradient(left ? 28 : 36, 24, 0, left ? 28 : 36, 24, 14);
+  glow.addColorStop(0, left ? "rgba(255,40,40,0.55)" : "rgba(60,110,255,0.55)");
+  glow.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(left ? 28 : 36, 24, 14, 0, 7); ctx.fill();
+  return c;
+}
+
 // --------------------------------------------------------------- markers
 const GLYPH_DRAW = {
   soldier: () => drawSoldier(1, false),
@@ -347,17 +387,42 @@ const GLYPH_DRAW = {
   column: () => drawTank(0, false, false),
 };
 
-function drawMarker(color, glyph) {
+// Marker outline shape encodes WHO acted; the ring colour and glyph encode
+// WHAT happened. Military = circle, armed group = diamond, police = shield,
+// unattributed = dashed square with no combatant glyph.
+function markerPath(ctx, force) {
+  ctx.beginPath();
+  switch (force) {
+    case "armed": ctx.moveTo(32, 4); ctx.lineTo(60, 32); ctx.lineTo(32, 60); ctx.lineTo(4, 32); ctx.closePath(); break;
+    case "police": ctx.moveTo(32, 4); ctx.lineTo(56, 12); ctx.lineTo(54, 36); ctx.quadraticCurveTo(48, 52, 32, 60); ctx.quadraticCurveTo(16, 52, 10, 36); ctx.lineTo(8, 12); ctx.closePath(); break;
+    case "unattributed": ctx.roundRect(8, 8, 48, 48, 8); break;
+    default: ctx.arc(32, 32, 26, 0, Math.PI * 2);
+  }
+}
+
+function drawMarker(color, glyph, force = "military") {
   const c = canvas(64);
   const ctx = c.getContext("2d");
-  ctx.beginPath();
-  ctx.arc(32, 32, 26, 0, Math.PI * 2);
+  markerPath(ctx, force);
   ctx.fillStyle = "rgba(12,14,18,0.82)";
   ctx.fill();
   ctx.lineWidth = 4;
   ctx.strokeStyle = color;
+  if (force === "unattributed") ctx.setLineDash([7, 5]);
   ctx.stroke();
-  ctx.drawImage(GLYPH_DRAW[glyph](), 12, 12, 40, 40);
+  ctx.setLineDash([]);
+  if (force === "police") {
+    ctx.drawImage(drawPoliceCar(0), 14, 13, 36, 36);
+  } else if (force === "unattributed") {
+    // No soldiers/vehicles: just a hazard mark, so nothing implies a military actor.
+    ctx.fillStyle = color;
+    ctx.font = "bold 30px system-ui, sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText("!", 32, 34);
+  } else {
+    const g = glyph === "soldier" && force === "armed" ? drawSoldier(1, false, "fighter") : GLYPH_DRAW[glyph]();
+    ctx.drawImage(g, 12, 12, 40, 40);
+  }
   return c;
 }
 
@@ -393,6 +458,14 @@ export function sprites() {
   add("soldierL", walkR.map(mirror));
   add("soldierFireR", [drawSoldier(0, true)]);
   add("soldierFireL", [mirror(drawSoldier(0, true))]);
+  for (const style of ["fighter", "police"]) {
+    const walk = [0, 1, 2, 3, 4, 5].map((f) => drawSoldier(f, false, style));
+    add(`${style}R`, walk);
+    add(`${style}L`, walk.map(mirror));
+    add(`${style}FireR`, [drawSoldier(0, true, style)]);
+    add(`${style}FireL`, [mirror(drawSoldier(0, true, style))]);
+  }
+  add("policeCar", [0, 1].map(drawPoliceCar));
   add("tank", [0, 1, 2].map((f) => drawTank(f, false, false)));
   add("tankFire", [drawTank(0, true, true)]);
   add("artillery", [drawArtillery(false)]);
@@ -409,9 +482,15 @@ export function sprites() {
 }
 
 const markerCache = new Map();
-export function markerSprite(cat, color, glyph) {
-  if (!markerCache.has(cat)) markerCache.set(cat, drawMarker(color, glyph));
-  return markerCache.get(cat);
+export function markerSprite(cat, color, glyph, force = "military") {
+  const k = cat + "|" + force;
+  if (!markerCache.has(k)) markerCache.set(k, drawMarker(color, glyph, force));
+  return markerCache.get(k);
+}
+
+/** Neutral legend swatch for a force (shape only). */
+export function forceIcon(force, color) {
+  return drawMarker(color, "soldier", force).toDataURL();
 }
 const clusterCache = new Map();
 export function clusterSprite(count) {
@@ -421,8 +500,8 @@ export function clusterSprite(count) {
 }
 
 /** Small preview used by the legend. */
-export function legendIcon(cat, color, glyph) {
-  return markerSprite(cat, color, glyph).toDataURL();
+export function legendIcon(cat, color, glyph, force = "military") {
+  return markerSprite(cat, color, glyph, force).toDataURL();
 }
 
 // --------------------------------------------------------------- radio station (GhostNet)

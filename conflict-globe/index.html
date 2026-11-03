@@ -48,6 +48,9 @@
       <span id="feed-count" class="muted">0</span>
     </div>
     <input id="feed-search" type="search" placeholder="Filter by place, actor, type…" autocomplete="off">
+    <div class="filter-label">Who acted</div>
+    <div id="force-filters" class="cat-filters force-filters"></div>
+    <div class="filter-label">What happened</div>
     <div id="cat-filters" class="cat-filters"></div>
     <ol id="feed-list"></ol>
   </aside>
@@ -128,8 +131,14 @@
         which machine-codes world news every 15 minutes. Events are plotted where the article places the action;
         country-level geocodes are dropped. Coding is automated and can be wrong, duplicated or refer to past events —
         open the source articles before relying on any single marker.</p>
+      <p><b>Who acted.</b> Every event is classified by the actor GDELT codes as its <em>initiator</em>, never by the kind of violence:
+        <b>Military</b> needs an explicit armed-forces code (MIL); <b>Armed group</b> means rebels, insurgents, separatists or unaligned armed
+        forces; <b>Police</b> means law enforcement (COP; police wins if an actor carries both codes); everything else, including events
+        attributed only to a country, a group of civilians or nobody, is <b>Unattributed</b>. Because the rule is strict, some genuine military
+        actions will appear as Unattributed when the news coding names only a country.</p>
       <p><b>Soldiers, tanks, artillery, jets, drones and ships</b> shown around an event are <em>symbolic animations of the reported
-        event type</em>. No public source publishes live positions of individual troops or vehicles, and this app does not attempt to.</p>
+        event type</em>, and they are only drawn for military and armed-group events. Police events show officers and patrol cars;
+        unattributed events show no people or vehicles. No public source publishes live positions of individual troops or vehicles, and this app does not attempt to.</p>
       <p><b>Aircraft</b> are real, live ADS-B positions from community receivers
         (<a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>, <a href="https://airplanes.live" target="_blank" rel="noopener">airplanes.live</a>),
         drawn with a silhouette matching the reported ICAO aircraft type. Many military aircraft fly without transponders over

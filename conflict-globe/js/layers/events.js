@@ -28,6 +28,7 @@ export class EventLayer {
     viewer.dataSources.add(this.ds);
     this.events = new Map();
     this.hidden = new Set();
+    this.hiddenForces = new Set();
   }
 
   setEvents(list) {
@@ -40,11 +41,12 @@ export class EventLayer {
         Object.assign(existing.ev, ev);
         continue;
       }
+      ev.force ||= "unattributed";
       const cat = CATEGORIES[ev.cat];
       const entity = this.ds.entities.add({
         position: C.Cartesian3.fromDegrees(ev.lon, ev.lat, 0),
         billboard: {
-          image: markerSprite(ev.cat, cat.color, cat.glyph),
+          image: markerSprite(ev.cat, cat.color, cat.glyph, ev.force),
           width: 30, height: 30,
           heightReference: C.HeightReference.CLAMP_TO_GROUND,
           scaleByDistance: new C.NearFarScalar(3e4, 1.15, 1.6e7, 0.6),
@@ -52,7 +54,7 @@ export class EventLayer {
           disableDepthTestDistance: 3e5,
           scale: new C.CallbackProperty(() => this.pulse(ev.key), false),
         },
-        show: !this.hidden.has(ev.cat),
+        show: this.isShown(ev),
       });
       entity._cg = { kind: "event", key: ev.key };
       this.events.set(ev.key, { ev, entity, phase: Math.random() });
@@ -73,9 +75,16 @@ export class EventLayer {
     return 1 + 0.28 * Math.sin(p * Math.PI);
   }
 
+  isShown(ev) { return !this.hidden.has(ev.cat) && !this.hiddenForces.has(ev.force); }
+
   setHiddenCategories(set) {
     this.hidden = new Set(set);
-    for (const rec of this.events.values()) rec.entity.show = !this.hidden.has(rec.ev.cat);
+    for (const rec of this.events.values()) rec.entity.show = this.isShown(rec.ev);
+  }
+
+  setHiddenForces(set) {
+    this.hiddenForces = new Set(set);
+    for (const rec of this.events.values()) rec.entity.show = this.isShown(rec.ev);
   }
 
   setVisible(v) {

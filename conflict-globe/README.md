@@ -14,6 +14,23 @@ A real-time 3D globe of **reported armed conflict** and **live military aircraft
 
 Click an event to see its type, place, actors and links to the source articles.
 
+## Military vs police vs everything else
+
+Every event is classified by **who started it**, using the actor-type codes GDELT gives the initiating actor (Actor1). The kind of violence never decides this.
+
+| Force | Rule | Marker | Animated scene |
+|---|---|---|---|
+| **Military** | Initiator has an explicit armed-forces code (`MIL`) | circle | soldiers, tanks, artillery, jets, drones, warships |
+| **Armed group** | Rebels, insurgents, separatists, unaligned armed forces (`REB` `INS` `SEP` `UAF`) | diamond | irregular fighters; no jets or warships |
+| **Police** | Law enforcement (`COP`). If an actor carries both police and military codes (gendarmerie), police wins | shield | police officers and patrol cars only |
+| **Unattributed** | Anything else: criminal, civilian, intelligence, country-level only, or no actor at all | dashed square | no people or vehicles, only explosions/fire |
+
+* Violence aimed **at** soldiers or police doesn't make an event military or police. The target is shown separately.
+* Military and police reports of the same incident type at the same place are never merged into one marker.
+* Event names are neutral ("Use of force", not CAMEO's "Use conventional military force"), because GDELT applies those codes to police and criminal violence too.
+* Use the **Who acted** filter in the feed panel to show or hide each force.
+* The rule is deliberately strict, so real military actions that the news coding attributes only to a country (e.g. `RUS`) appear as **Unattributed**.
+
 ## Data sources and limits (please read)
 
 | Layer | Source | Latency | What it is |

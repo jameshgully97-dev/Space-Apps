@@ -4,7 +4,12 @@
 // strike passes, drones orbiting, ships patrolling, explosions and fires.
 //
 // IMPORTANT: these units are *symbolic* — they illustrate the type of the
-// reported event at its reported location. No public source publishes the
+// reported event at its reported location. The cast depends on WHO acted:
+//   military     → soldiers, tanks, artillery, jets, drones, warships
+//   armed group  → irregular fighters (no air force, no warships)
+//   police       → police officers and patrol cars only
+//   unattributed → no people or vehicles at all, only explosions / fire,
+//                  so violence alone is never drawn as military activity. No public source publishes the
 // live positions of individual soldiers or vehicles.
 
 import { sprites } from "../sprites.js";
@@ -86,13 +91,13 @@ class Group {
   }
 
   // ----------------------------------------------------------- unit factories
-  soldier(side, cx, cn) {
+  soldier(side, cx, cn, style = this.style) {
     const r = this.r;
     const face = this.axis + (side ? Math.PI : 0);
     const u = {
-      a: { R: this.anim("soldierR", 26), L: this.anim("soldierL", 26), FR: this.anim("soldierFireR", 26), FL: this.anim("soldierFireL", 26) },
+      a: { R: this.anim(`${style}R`, 26), L: this.anim(`${style}L`, 26), FR: this.anim(`${style}FireR`, 26), FL: this.anim(`${style}FireL`, 26) },
       e: cx + (r() - 0.5) * 160, n: cn + (r() - 0.5) * 160, te: cx, tn: cn, mode: "walk", timer: r() * 4,
-      color: side ? SIDE_B : WHITE, cx, cn, face, phase: r() * 6,
+      color: side && style !== "police" ? SIDE_B : WHITE, cx, cn, face, phase: r() * 6,
     };
     u.update = (dt, t) => {
       u.timer -= dt;
@@ -195,19 +200,31 @@ class Group {
     return this.add(u);
   }
 
-  column(count, spacing) {
-    // A convoy of tanks with infantry, moving along a road through the event.
+  policeCar(cx, cn, radius) {
+    const r = this.r;
+    const u = { a: { c: this.topDown("policeCar", 28) }, w: (5 + r() * 4) / radius, ph: r() * 6.28, parked: r() < 0.4 };
+    u.update = (dt, t) => {
+      const th = u.parked ? u.ph : t * u.w + u.ph;
+      const e = cx + radius * Math.cos(th), n = cn + radius * 0.6 * Math.sin(th);
+      const heading = Math.atan2(-radius * Math.sin(th), radius * 0.6 * Math.cos(th));
+      u.a.c.draw(Math.floor(t * 5), this.enu(e, n, 2), -heading);
+    };
+    return this.add(u);
+  }
+
+  column(count, spacing, { vehicle = "tank", style = this.style } = {}) {
+    // A convoy (tanks / patrol cars, or none) with personnel, moving along a road.
     const L = 3200, v = 9, h = this.axis;
     for (let i = 0; i < count; i++) {
-      const isTank = i % 3 === 0;
-      const u = { a: isTank ? { t: this.topDown("tank", 32) } : { R: this.anim("soldierR", 24), L: this.anim("soldierL", 24) }, off: i * spacing, lat: isTank ? 0 : (i % 2 ? 22 : -22) };
+      const isVeh = vehicle && i % 3 === 0;
+      const u = { a: isVeh ? { t: this.topDown(vehicle, 32) } : { R: this.anim(`${style}R`, 24), L: this.anim(`${style}L`, 24) }, off: i * spacing, lat: isVeh ? 0 : (i % 2 ? 22 : -22) };
       u.update = (dt, t) => {
         const s = ((t * v + u.off) % L) - L / 2;
         const e = Math.sin(h) * s + Math.cos(h) * u.lat, n = Math.cos(h) * s - Math.sin(h) * u.lat;
         const pos = this.enu(e, n, 2);
         const fade = Math.min(1, (L / 2 - Math.abs(s)) / 300);
         const col = WHITE.withAlpha(Math.max(0, fade));
-        if (isTank) u.a.t.draw(Math.floor(t * 8), pos, -h, col);
+        if (isVeh) u.a.t.draw(Math.floor(t * 8), pos, -h, col);
         else {
           const right = Math.sin(h) >= 0;
           u.a[right ? "L" : "R"].hide();
@@ -233,7 +250,16 @@ class Group {
   add(u) { this.units.push(u); return u; }
 
   build() {
-    const r = this.r, ax = this.axis;
+    const force = this.ev.force || "unattributed";
+    this.style = force === "police" ? "police" : force === "armed" ? "fighter" : "soldier";
+    if (force === "police") this.buildPolice();
+    else if (force === "unattributed") this.buildUnattributed();
+    else this.buildCombat(force);
+    this.nextPeriodic = this.periodic ? this.r() * this.periodic : Infinity;
+  }
+
+  buildCombat(force) {
+    const r = this.r, ax = this.axis, military = force === "military";
     const sideOff = (d) => [Math.sin(ax) * d, Math.cos(ax) * d];
     switch (this.ev.cat) {
       case "ground": {
@@ -245,21 +271,43 @@ class Group {
       }
       case "armor": {
         this.tank(...sideOff(-350), 260);
-        this.tank(...sideOff(-200), 320);
+        if (military) this.tank(...sideOff(-200), 320);
         this.artillery(...sideOff(-1500), ax);
         for (let i = 0; i < 3; i++) this.soldier(1, ...sideOff(250));
         break;
       }
-      case "air": this.jet(); this.fire(60, -40); break;
+      // Only state militaries are drawn with combat jets and warships.
+      case "air": if (military) this.jet(); this.fire(60, -40); this.periodic = military ? 0 : 3; break;
       case "drone": this.drone(); this.fire(-30, 20); break;
       case "bombing": this.fire(0, 0); if (r() < 0.6) this.fire(70, 40); this.periodic = 2.5; break;
       case "massviol": this.fire(0, 0); this.fire(-90, 60); this.fire(80, -50); this.periodic = 3.5;
         for (let i = 0; i < 3; i++) this.soldier(0, 0, 0); break;
-      case "naval": this.ship(1100, 0); this.ship(1500, 2.5); this.periodic = 6; break;
-      case "mobilize": this.column(12, 130); break;
+      case "naval": if (military) { this.ship(1100, 0); this.ship(1500, 2.5); } this.periodic = 6; break;
+      case "mobilize": this.column(12, 130, { vehicle: military ? "tank" : null }); break;
       default: this.soldier(0, 0, 0);
     }
-    this.nextPeriodic = this.periodic ? r() * this.periodic : Infinity;
+  }
+
+  buildPolice() {
+    // Law enforcement only: officers on foot and patrol cars, no military kit.
+    const r = this.r, cat = this.ev.cat;
+    const officers = cat === "mobilize" ? 0 : 3 + Math.floor(r() * 3);
+    for (let i = 0; i < officers; i++) this.soldier(i % 2, (r() - 0.5) * 120, (r() - 0.5) * 120, "police");
+    this.policeCar(0, 0, 160);
+    this.policeCar(40, -30, 260);
+    if (cat === "mobilize") this.column(9, 150, { vehicle: "policeCar", style: "police" });
+    if (cat === "bombing" || cat === "massviol") { this.fire(0, 0); this.periodic = cat === "bombing" ? 5 : 0; }
+  }
+
+  buildUnattributed() {
+    // No identified armed actor: draw only the effects of violence, never
+    // soldiers or military vehicles.
+    const r = this.r;
+    switch (this.ev.cat) {
+      case "bombing": case "massviol": this.fire(0, 0); if (r() < 0.5) this.fire(60, -40); this.periodic = 3; break;
+      case "air": case "drone": case "armor": this.fire(0, 0); this.periodic = 4; break;
+      default: this.periodic = 0; // marker only
+    }
   }
 
   update(dt) {
@@ -293,6 +341,7 @@ export class UnitLayer {
     this.groups = new Map();
     this.enabled = true;
     this.hidden = new Set();
+    this.hiddenForces = new Set();
     this.last = performance.now();
     this.nextSelect = 0;
     this.cartCache = new Map();
@@ -324,7 +373,7 @@ export class UnitLayer {
     const wanted = [];
     if (this.enabled && height < SPAWN_RANGE) {
       for (const ev of this.getEvents()) {
-        if (this.hidden.has(ev.cat)) continue;
+        if (this.hidden.has(ev.cat) || this.hiddenForces.has(ev.force)) continue;
         let p = this.cartCache.get(ev.key);
         if (!p) { p = C.Cartesian3.fromDegrees(ev.lon, ev.lat, 0); this.cartCache.set(ev.key, p); }
         const d = C.Cartesian3.distance(cam, p);
@@ -340,5 +389,6 @@ export class UnitLayer {
 
   setEnabled(v) { this.enabled = v; this.select(); }
   setHiddenCategories(set) { this.hidden = new Set(set); this.select(); }
+  setHiddenForces(set) { this.hiddenForces = new Set(set); this.select(); }
   get activeCount() { return this.groups.size; }
 }

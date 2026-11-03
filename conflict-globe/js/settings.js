@@ -18,6 +18,7 @@ const DEFAULTS = {
   showRadio: true,
   demo: false,
   hiddenCats: [],
+  hiddenForces: [],
 };
 
 let state = { ...DEFAULTS };

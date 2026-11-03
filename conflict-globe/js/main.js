@@ -1,9 +1,9 @@
 // Conflict Globe — application entry point.
 
-import { CATEGORIES, CAMEO_NAMES } from "./config.js";
+import { CATEGORIES, CAMEO_NAMES, FORCES } from "./config.js";
 import { settings } from "./settings.js";
 import { routeFor } from "./net.js";
-import { legendIcon, sprites, radioSprite } from "./sprites.js";
+import { legendIcon, sprites, radioSprite, forceIcon } from "./sprites.js";
 import { GdeltFeed } from "./feeds/gdelt.js";
 import { AircraftFeed } from "./feeds/adsb.js";
 import { demoEvents, demoAircraft, demoRadioReports } from "./feeds/demo.js";
@@ -201,9 +201,10 @@ function applySetting(k, v) {
     case "showBorders": borders.show = v; break;
     case "showRadio": radioLayer.setVisible(v); break;
     case "hiddenCats": eventLayer.setHiddenCategories(v); unitLayer.setHiddenCategories(v); renderFeed(); break;
+    case "hiddenForces": eventLayer.setHiddenForces(v); unitLayer.setHiddenForces(v); renderFeed(); break;
   }
 }
-for (const k of ["showEvents", "showUnits", "showMilAir", "showNearbyAir", "showLabels", "showBorders", "showRadio", "hiddenCats"]) applySetting(k, settings.get(k));
+for (const k of ["showEvents", "showUnits", "showMilAir", "showNearbyAir", "showLabels", "showBorders", "showRadio", "hiddenCats", "hiddenForces"]) applySetting(k, settings.get(k));
 settings.onChange(applySetting);
 
 document.querySelectorAll("[data-set]").forEach((el) => {
@@ -221,10 +222,26 @@ document.querySelectorAll("[data-set]").forEach((el) => {
 });
 
 // ------------------------------------------------------------------ feed list
+// Force filter: who initiated the event. Separate from the action type below.
+const forceFilters = $("#force-filters");
+for (const [key, f] of Object.entries(FORCES)) {
+  const b = document.createElement("button");
+  b.innerHTML = `<img alt="" src="${forceIcon(key, f.color)}">${esc(f.short)} <span class="cnt" data-force-count="${key}">0</span>`;
+  b.title = f.desc;
+  b.dataset.force = key;
+  b.setAttribute("aria-pressed", String(!settings.get("hiddenForces").includes(key)));
+  b.onclick = () => {
+    const hidden = new Set(settings.get("hiddenForces"));
+    hidden.has(key) ? hidden.delete(key) : hidden.add(key);
+    b.setAttribute("aria-pressed", String(!hidden.has(key)));
+    settings.set("hiddenForces", [...hidden]);
+  };
+  forceFilters.appendChild(b);
+}
 const catFilters = $("#cat-filters");
 for (const [key, cat] of Object.entries(CATEGORIES)) {
   const b = document.createElement("button");
-  b.innerHTML = `<img alt="" src="${legendIcon(key, cat.color, cat.glyph)}">${esc(cat.label.split(" ")[0].replace("/", ""))}`;
+  b.innerHTML = `<img alt="" src="${legendIcon(key, cat.color, cat.glyph)}">${esc(cat.short)}`;
   b.title = cat.label;
   b.dataset.cat = key;
   b.setAttribute("aria-pressed", String(!settings.get("hiddenCats").includes(key)));
@@ -248,9 +265,13 @@ function ago(t) {
 function renderFeed() {
   const q = $("#feed-search").value.trim().toLowerCase();
   const hidden = new Set(settings.get("hiddenCats"));
+  const hiddenF = new Set(settings.get("hiddenForces"));
+  const counts = Object.fromEntries(Object.keys(FORCES).map((k) => [k, 0]));
+  for (const e of events) if (!hidden.has(e.cat)) counts[e.force || "unattributed"]++;
+  document.querySelectorAll("[data-force-count]").forEach((el) => (el.textContent = counts[el.dataset.forceCount].toLocaleString()));
   const list = events
-    .filter((e) => !hidden.has(e.cat))
-    .filter((e) => !q || `${e.title} ${e.place} ${e.actors.join(" ")} ${CATEGORIES[e.cat].label}`.toLowerCase().includes(q))
+    .filter((e) => !hidden.has(e.cat) && !hiddenF.has(e.force))
+    .filter((e) => !q || `${e.title} ${e.place} ${e.actors.join(" ")} ${CATEGORIES[e.cat].label} ${FORCES[e.force].label}`.toLowerCase().includes(q))
     .sort((a, b) => b.last - a.last || b.reports - a.reports);
   $("#feed-count").textContent = `${list.length.toLocaleString()} events`;
   const ol = $("#feed-list");
@@ -261,7 +282,7 @@ function renderFeed() {
   ol.innerHTML = list.slice(0, 300).map((e) => `
     <li data-key="${esc(e.key)}" class="${e.key === selectedKey ? "sel" : ""}">
       <span class="bar" style="background:${CATEGORIES[e.cat].color}"></span>
-      <span><span class="t">${esc(e.title)}</span><br><span class="p">${esc(e.place)}</span></span>
+      <span><span class="ftag" style="--fc:${FORCES[e.force].color}">${esc(FORCES[e.force].short)}</span> <span class="t">${esc(e.title)}</span><br><span class="p">${esc(e.place)}</span></span>
       <span class="ago">${Date.now() - e.last < 3600e3 ? '<span class="new">NEW</span> ' : ""}${ago(e.last)}<span class="n">${e.reports}×</span></span>
     </li>`).join("");
 }
@@ -290,12 +311,17 @@ function selectEvent(e) {
   aircraftLayer.selected = null;
   followHex = null;
   const cat = CATEGORIES[e.cat];
+  const force = FORCES[e.force];
+  const targets = (e.targets || []).filter((t) => t !== "unattributed").map((t) => FORCES[t].short);
   const precision = { 2: "province / state", 3: "city", 4: "city", 5: "landmark" }[e.precision] || "approximate";
   $("#info-body").innerHTML = `
+    <span class="tag" style="background:${force.color};color:#fff">${esc(force.label)}</span>
     <span class="tag" style="background:${cat.color}">${esc(cat.label)}</span>
     <h3>${esc(e.title)}</h3>
     <div class="sub">${esc(e.place)}</div>
     <dl>
+      <dt>Initiated by</dt><dd>${esc(force.label)}<br><span class="muted small">${esc(force.desc)}</span></dd>
+      ${targets.length ? `<dt>Target</dt><dd>${esc([...new Set(targets)].join(", "))}</dd>` : ""}
       <dt>Reports</dt><dd>${e.reports} merged report${e.reports > 1 ? "s" : ""}</dd>
       <dt>First / latest</dt><dd>${new Date(e.first).toISOString().slice(0, 16).replace("T", " ")} / ${new Date(e.last).toISOString().slice(11, 16)} UTC</dd>
       <dt>Location</dt><dd>${e.lat.toFixed(3)}, ${e.lon.toFixed(3)} <span class="muted">(${precision})</span></dd>
@@ -305,7 +331,9 @@ function selectEvent(e) {
     </dl>
     ${e.urls.length ? `<b>Source articles</b><ol class="links">${e.urls.map((u) => `<li><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(new URL(u).hostname.replace(/^www\./, ""))}</a></li>`).join("")}</ol>` : ""}
     <div class="btns"><button class="primary" id="info-fly">Zoom to event</button></div>
-    <p class="note">Units animated around this point illustrate the reported event type; they are not tracked positions.</p>`;
+    <p class="note">${e.force === "unattributed"
+      ? "No military, armed-group or police actor was identified as the initiator, so no combatants are drawn here."
+      : `Figures animated around this point illustrate the reported event (${esc(force.short.toLowerCase())}); they are not tracked positions.`}</p>`;
   $("#info-fly").onclick = () => flyToEvent(e);
   $("#info").hidden = false;
   renderFeed();
@@ -422,7 +450,10 @@ tickClock();
 
 // legend
 const legend = $("#legend-body");
-legend.innerHTML = Object.entries(CATEGORIES).map(([k, c]) => `<div class="li"><img alt="" src="${legendIcon(k, c.color, c.glyph)}">${esc(c.label)}</div>`).join("")
+legend.innerHTML = `<div class="sep" style="margin-top:0">Who acted (marker shape)</div>`
+  + Object.entries(FORCES).map(([k, f]) => `<div class="li"><img alt="" src="${forceIcon(k, f.color)}">${esc(f.label)}</div>`).join("")
+  + `<div class="sep">What happened (colour)</div>`
+  + Object.entries(CATEGORIES).map(([k, c]) => `<div class="li"><img alt="" src="${legendIcon(k, c.color, c.glyph)}">${esc(c.label)}</div>`).join("")
   + `<div class="sep">GhostNet HF radio (JS8Call)</div>`
   + Object.entries(BAND_COLORS).map(([b, c]) => `<div class="li"><img alt="" src="${radioSprite(c).toDataURL()}">Station heard on ${b}</div>`).join("")
   + `<div class="li"><img alt="" src="${radioSprite("#9aa7b4").toDataURL()}">Receiving station</div>`
