@@ -1,0 +1,8 @@
+{
+  "name": "conflict-globe",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Live 3D globe of reported armed conflict events and military aircraft.",
+  "scripts": { "start": "node server.js" }
+}

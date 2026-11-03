@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Conflict Globe</title>
+  <meta name="description" content="Live 3D globe of reported armed conflict events and military aircraft.">
+  <meta name="theme-color" content="#0b0f14">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cesium@1.135.0/Build/Cesium/Widgets/widgets.css">
+  <link rel="stylesheet" href="css/app.css">
+  <script>window.CESIUM_BASE_URL = "https://cdn.jsdelivr.net/npm/cesium@1.135.0/Build/Cesium/";</script>
+  <script src="https://cdn.jsdelivr.net/npm/cesium@1.135.0/Build/Cesium/Cesium.js"></script>
+</head>
+<body>
+  <div id="globe"></div>
+
+  <header id="topbar">
+    <div class="brand">
+      <span class="live-dot" aria-hidden="true"></span>
+      <span class="brand-name">CONFLICT&nbsp;GLOBE</span>
+    </div>
+    <div class="clock" id="clock" title="Coordinated Universal Time">--:--:-- UTC</div>
+    <div class="chips" id="chips">
+      <span class="chip" id="chip-events" title="News-reported conflict events (GDELT 2.0)"><i></i>Events <b>—</b></span>
+      <span class="chip" id="chip-mil" title="Military aircraft broadcasting ADS-B, worldwide"><i></i>Mil air <b>—</b></span>
+      <span class="chip" id="chip-nearby" title="All aircraft within 250 nm of the view centre"><i></i>Nearby air <b>—</b></span>
+    </div>
+    <nav class="actions">
+      <button id="btn-feed" class="icon-btn" title="Event feed" aria-label="Event feed">☰</button>
+      <button id="btn-layers" class="icon-btn" title="Layers" aria-label="Layers">◧</button>
+      <button id="btn-settings" class="icon-btn" title="Settings" aria-label="Settings">⚙</button>
+      <button id="btn-about" class="icon-btn" title="About the data" aria-label="About the data">ⓘ</button>
+      <button id="btn-install" class="icon-btn" title="Install as Windows app" aria-label="Install as app" hidden>⤓</button>
+      <button id="btn-full" class="icon-btn" title="Full screen" aria-label="Full screen">⛶</button>
+    </nav>
+  </header>
+
+  <div id="banner" hidden></div>
+
+  <aside id="feed" class="panel">
+    <div class="panel-head">
+      <h2>Live conflict feed</h2>
+      <span id="feed-count" class="muted">0</span>
+    </div>
+    <input id="feed-search" type="search" placeholder="Filter by place, actor, type…" autocomplete="off">
+    <div id="cat-filters" class="cat-filters"></div>
+    <ol id="feed-list"></ol>
+  </aside>
+
+  <section id="layers" class="panel popover" hidden>
+    <h3>Layers</h3>
+    <label class="toggle"><input type="checkbox" data-set="showEvents"> Conflict event markers</label>
+    <label class="toggle"><input type="checkbox" data-set="showUnits"> Animated units (zoomed in)</label>
+    <label class="toggle"><input type="checkbox" data-set="showMilAir"> Military aircraft (live ADS-B)</label>
+    <label class="toggle"><input type="checkbox" data-set="showNearbyAir"> All aircraft near view</label>
+    <label class="toggle"><input type="checkbox" data-set="showLabels"> Aircraft ID labels</label>
+    <label class="toggle"><input type="checkbox" data-set="showBorders"> Borders &amp; place names</label>
+    <div class="row">
+      <label for="sel-history">Event window</label>
+      <select id="sel-history" data-set="historyHours" data-num>
+        <option value="1">1 hour</option><option value="3">3 hours</option><option value="6">6 hours</option>
+        <option value="12">12 hours</option><option value="24">24 hours</option>
+      </select>
+    </div>
+    <div class="row">
+      <label for="sel-min">Min. reports</label>
+      <select id="sel-min" data-set="minSources" data-num>
+        <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="5">5</option>
+      </select>
+    </div>
+  </section>
+
+  <aside id="info" class="panel" hidden>
+    <button class="close" id="info-close" aria-label="Close">×</button>
+    <div id="info-body"></div>
+  </aside>
+
+  <div id="legend" class="panel">
+    <button id="legend-toggle" class="legend-head">Legend <span>▾</span></button>
+    <div id="legend-body"></div>
+  </div>
+
+  <footer id="statusbar">
+    <span id="st-cursor">—</span>
+    <span id="st-alt">—</span>
+    <span id="st-units">—</span>
+    <span id="st-route" class="muted">—</span>
+  </footer>
+
+  <dialog id="dlg-settings">
+    <form method="dialog">
+      <h3>Settings</h3>
+      <label>Google Maps API key <small>— enables Google Photorealistic 3D Tiles (3D cities &amp; terrain)</small>
+        <input id="in-google" type="password" autocomplete="off" placeholder="AIza…"></label>
+      <label>Cesium ion access token <small>— enables Cesium World Terrain</small>
+        <input id="in-ion" type="password" autocomplete="off" placeholder="eyJ…"></label>
+      <label>CORS proxy URL <small>— only needed when hosted on the web without the bundled server, e.g. <code>https://your-worker.workers.dev/?url=</code></small>
+        <input id="in-proxy" type="url" autocomplete="off" placeholder="(auto: local server)"></label>
+      <label class="toggle"><input id="in-demo" type="checkbox"> Demo mode (simulated data, for offline presentations)</label>
+      <p class="muted">Keys are stored only in this browser.</p>
+      <menu>
+        <button value="cancel" class="ghost">Cancel</button>
+        <button value="save" id="btn-save" class="primary">Save &amp; reload</button>
+      </menu>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-about">
+    <form method="dialog">
+      <h3>About the data</h3>
+      <p><b>Conflict events</b> come from the <a href="https://www.gdeltproject.org/" target="_blank" rel="noopener">GDELT 2.0 Event Database</a>,
+        which machine-codes world news every 15 minutes. Events are plotted where the article places the action;
+        country-level geocodes are dropped. Coding is automated and can be wrong, duplicated or refer to past events —
+        open the source articles before relying on any single marker.</p>
+      <p><b>Soldiers, tanks, artillery, jets, drones and ships</b> shown around an event are <em>symbolic animations of the reported
+        event type</em>. No public source publishes live positions of individual troops or vehicles, and this app does not attempt to.</p>
+      <p><b>Aircraft</b> are real, live ADS-B positions from community receivers
+        (<a href="https://adsb.lol" target="_blank" rel="noopener">adsb.lol</a>, <a href="https://airplanes.live" target="_blank" rel="noopener">airplanes.live</a>),
+        drawn with a silhouette matching the reported ICAO aircraft type. Many military aircraft fly without transponders over
+        active war zones, so coverage there is partial.</p>
+      <p><b>Imagery</b>: Esri World Imagery, NASA Black Marble night lights, Natural Earth II, and optionally Google Photorealistic 3D Tiles.</p>
+      <menu><button class="primary">Close</button></menu>
+    </form>
+  </dialog>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
