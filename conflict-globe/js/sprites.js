@@ -3,6 +3,8 @@
 // ships) point north and are rotated by heading on the globe; side-view
 // sprites (soldiers) are mirrored to face their direction of travel.
 
+import { uniformFor, SKIN_TONES, drawFlag, paintCamo } from "./uniforms.js";
+
 const S = 64;
 const OUTLINE = "rgba(10,12,10,0.95)";
 
@@ -50,61 +52,62 @@ const FIGURE = {
   police:  { leg: "#1b2740", leg2: "#22304f", arm: "#2a3b63", torso: "#2f4475", belt: "#111", pack: null, head: "#14203a", cap: true, long: false, vest: "#c8d400" },
 };
 
-function drawSoldier(frame, firing, style = "soldier") {
-  const st = FIGURE[style];
+/**
+ * Draw one figure frame.
+ *  style   soldier | fighter | police
+ *  kit     national uniform from uniforms.js (soldiers / police patch), or null
+ *  skin    index into SKIN_TONES — chosen per figure, never by nationality
+ * Clothing is drawn on its own layer so camouflage only covers the uniform.
+ */
+function drawSoldier(frame, firing, style = "soldier", kit = null, skin = 2) {
+  const st = { ...FIGURE[style] };
+  if (style === "soldier" && kit) Object.assign(st, { leg: kit.base, leg2: kit.base, arm: kit.base, torso: kit.base, pack: kit.base, head: kit.helmet });
+  const skinCol = SKIN_TONES[skin] || SKIN_TONES[2];
   const c = canvas();
   const ctx = c.getContext("2d");
+  const cloth = canvas();          // uniform layer (camouflaged)
+  const cx = cloth.getContext("2d");
+  const front = canvas();          // front arm layer (camouflaged, drawn over the weapon)
+  const fx = front.getContext("2d");
   const t = (frame / 6) * Math.PI * 2;
   const swing = firing ? 0.15 : Math.sin(t) * 0.55;
   const bob = firing ? 0 : Math.abs(Math.cos(t)) * 1.5;
   shadow(ctx, 32, 58, 12, 3);
   const hipX = 30, hipY = 38 - bob;
-  const limb = (x, y, ang, len, w, col) => {
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(ang);
-    ctx.beginPath();
-    ctx.roundRect(-w / 2, 0, w, len, w / 2);
-    stroked(ctx, col, 1.6);
-    ctx.restore();
+  const limb = (g, x, y, ang, len, w, col) => {
+    g.save();
+    g.translate(x, y);
+    g.rotate(ang);
+    g.beginPath();
+    g.roundRect(-w / 2, 0, w, len, w / 2);
+    stroked(g, col, 1.6);
+    g.restore();
   };
-  // back leg, back arm
-  limb(hipX, hipY, -swing, 18, 6, st.leg);
-  if (!firing) limb(hipX + 1, hipY - 14, swing * 0.8, 13, 5, st.arm);
-  // torso + webbing
-  ctx.beginPath();
-  ctx.roundRect(hipX - 6, hipY - 17, 12, 19, 4);
-  stroked(ctx, st.torso, 1.8);
-  if (st.vest) { ctx.fillStyle = st.vest; ctx.fillRect(hipX - 5, hipY - 15, 10, 8); }
-  ctx.fillStyle = st.belt;
-  ctx.fillRect(hipX - 6, hipY - 7, 12, 3);
-  if (st.pack) {
-    ctx.beginPath();
-    ctx.roundRect(hipX - 11, hipY - 16, 6, 12, 2);
-    stroked(ctx, st.pack, 1.4);
-  }
-  // front leg
-  limb(hipX, hipY, swing, 18, 6, st.leg2);
-  // head + helmet
-  ctx.beginPath();
-  ctx.arc(hipX + 1, hipY - 22, 5, 0, Math.PI * 2);
-  stroked(ctx, "#c9a27a", 1.5);
+  // --- uniform layer: back leg, back arm, pack, torso, front leg
+  limb(cx, hipX, hipY, -swing, 18, 6, st.leg);
+  if (!firing) limb(cx, hipX + 1, hipY - 14, swing * 0.8, 13, 5, st.arm);
+  if (st.pack) { cx.beginPath(); cx.roundRect(hipX - 11, hipY - 16, 6, 12, 2); stroked(cx, st.pack, 1.4); }
+  cx.beginPath(); cx.roundRect(hipX - 6, hipY - 17, 12, 19, 4); stroked(cx, st.torso, 1.8);
+  limb(cx, hipX, hipY, swing, 18, 6, st.leg2);
+  if (style === "soldier" && kit) paintCamo(cx, kit, 64, 1);
+  // kit details that must not be camouflaged
+  if (st.vest) { cx.fillStyle = st.vest; cx.fillRect(hipX - 5, hipY - 15, 10, 8); }
+  cx.fillStyle = st.belt; cx.fillRect(hipX - 6, hipY - 7, 12, 3);
+  ctx.drawImage(cloth, 0, 0);
+  // flag patch on the shoulder (state forces and police only)
+  if (kit?.flag && style !== "fighter") drawFlag(ctx, kit.flag, hipX - 4, hipY - 16, 7, 5);
+  // --- head, then helmet / cap
+  ctx.beginPath(); ctx.arc(hipX + 1, hipY - 22, 5, 0, Math.PI * 2); stroked(ctx, skinCol, 1.5);
   if (st.cap) {
-    // peaked police cap
-    ctx.beginPath();
-    ctx.roundRect(hipX - 5, hipY - 30, 11, 5, 2);
-    stroked(ctx, st.head, 1.4);
+    ctx.beginPath(); ctx.roundRect(hipX - 5, hipY - 30, 11, 5, 2); stroked(ctx, st.head, 1.4);
     ctx.fillStyle = "#111"; ctx.fillRect(hipX + 3, hipY - 26, 6, 2);
     ctx.fillStyle = "#e0c25a"; ctx.fillRect(hipX - 1, hipY - 29, 3, 2);
   } else {
-    ctx.beginPath();
-    ctx.ellipse(hipX + 1, hipY - 24, 7, 4.5, 0, Math.PI, 0);
-    ctx.lineTo(hipX + 8, hipY - 23);
-    ctx.closePath();
+    ctx.beginPath(); ctx.ellipse(hipX + 1, hipY - 24, 7, 4.5, 0, Math.PI, 0); ctx.lineTo(hipX + 8, hipY - 23); ctx.closePath();
     stroked(ctx, st.head, 1.5);
   }
   if (st.scarf) { ctx.fillStyle = "#7a2b2b"; ctx.fillRect(hipX - 3, hipY - 19, 9, 3); }
-  // weapon: long gun for soldiers/fighters, sidearm for police
+  // --- weapon: long gun for soldiers/fighters, sidearm for police
   ctx.save();
   ctx.translate(hipX + 2, hipY - 12);
   ctx.rotate(firing ? -0.05 : 0.35 + swing * 0.1);
@@ -113,8 +116,16 @@ function drawSoldier(frame, firing, style = "soldier") {
   else if (firing) { ctx.fillRect(8, -2, 8, 3); ctx.fillRect(8, 0, 3, 4); }
   if (firing) flash(ctx, st.long ? 23 : 17, -0.5, st.long ? 7 : 5);
   ctx.restore();
-  // front arm
-  limb(hipX + 2, hipY - 14, firing ? -1.35 : -0.9 - swing * 0.2, 12, 5, st.torso);
+  // --- front arm (+ identification armband, e.g. Ukrainian yellow / Russian white tape)
+  const armAng = firing ? -1.35 : -0.9 - swing * 0.2;
+  limb(fx, hipX + 2, hipY - 14, armAng, 12, 5, st.torso);
+  if (style === "soldier" && kit) paintCamo(fx, kit, 64, 2);
+  if (style === "soldier" && kit?.band) {
+    fx.save(); fx.translate(hipX + 2, hipY - 14); fx.rotate(armAng);
+    fx.fillStyle = kit.band; fx.fillRect(-2.5, 3, 5, 2.5);
+    fx.restore();
+  }
+  ctx.drawImage(front, 0, 0);
   return c;
 }
 
@@ -128,7 +139,8 @@ function mirror(src) {
 }
 
 // --------------------------------------------------------------- tank (top-down, north up)
-function drawTank(frame, firing, recoil) {
+function drawTank(frame, firing, recoil, kit = null) {
+  const hull = kit?.vehicle || "#5b6b3c";
   const c = canvas(S);
   const ctx = c.getContext("2d");
   shadow(ctx, 34, 36, 16, 22);
@@ -143,9 +155,10 @@ function drawTank(frame, firing, recoil) {
   // hull
   ctx.beginPath();
   ctx.roundRect(20, 14, 24, 38, 4);
-  stroked(ctx, "#5b6b3c", 2);
-  ctx.fillStyle = "#4c5a31";
+  stroked(ctx, hull, 2);
+  ctx.fillStyle = "rgba(0,0,0,0.18)";
   ctx.fillRect(22, 44, 20, 6);
+  if (kit?.flag) drawFlag(ctx, kit.flag, 26, 45, 12, 6);
   // turret
   const r = recoil ? 3 : 0;
   ctx.save();
@@ -156,7 +169,8 @@ function drawTank(frame, firing, recoil) {
   stroked(ctx, "#3a3f2a", 1.2);
   ctx.beginPath();
   ctx.ellipse(0, 0, 10, 11, 0, 0, Math.PI * 2);
-  stroked(ctx, "#6a7a46", 2);
+  stroked(ctx, hull, 2);
+  ctx.fillStyle = "rgba(255,255,255,0.08)"; ctx.fill();
   ctx.beginPath();
   ctx.arc(3, 3, 3, 0, Math.PI * 2);
   ctx.fillStyle = "#3b4528";
@@ -167,7 +181,7 @@ function drawTank(frame, firing, recoil) {
 }
 
 // --------------------------------------------------------------- artillery (towed howitzer)
-function drawArtillery(firing) {
+function drawArtillery(firing, kit = null) {
   const c = canvas(S);
   const ctx = c.getContext("2d");
   shadow(ctx, 32, 40, 14, 16);
@@ -440,6 +454,34 @@ function drawCluster(count) {
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
   ctx.fillText(count > 9999 ? "9k+" : String(count), 32, 33);
   return c;
+}
+
+// --------------------------------------------------------------- national kit sets (built on demand)
+const kitCache = new Map();
+/**
+ * Frames for a figure in a given national kit and skin tone, or a vehicle in
+ * national colours. Returns { R, L, FR, FL } (figures) or { move, fire } (tank).
+ */
+export function kitSprites(kind, countryCode, skin = 0, style = "soldier") {
+  const kit = uniformFor(countryCode);
+  const key = `${kind}|${style}|${kit.key}|${skin}`;
+  if (kitCache.has(key)) return kitCache.get(key);
+  const id = (n) => `${key}|${n}`;
+  let out;
+  if (kind === "figure") {
+    const walk = [0, 1, 2, 3, 4, 5].map((f) => drawSoldier(f, false, style, kit, skin));
+    const fire = drawSoldier(0, true, style, kit, skin);
+    const pack = (name, cvs) => cvs.map((c, i) => ({ id: id(name) + "#" + i, canvas: c }));
+    out = { R: pack("R", walk), L: pack("L", walk.map(mirror)), FR: pack("FR", [fire]), FL: pack("FL", [mirror(fire)]) };
+  } else {
+    out = {
+      move: [0, 1, 2].map((f, i) => ({ id: id("move") + "#" + i, canvas: drawTank(f, false, false, kit) })),
+      fire: [{ id: id("fire"), canvas: drawTank(0, true, true, kit) }],
+    };
+  }
+  out.kit = kit;
+  kitCache.set(key, out);
+  return out;
 }
 
 // --------------------------------------------------------------- registry

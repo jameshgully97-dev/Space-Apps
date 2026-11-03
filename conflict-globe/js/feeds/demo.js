@@ -27,8 +27,10 @@ export function demoEvents() {
       const t = now - Math.floor(r() * 3 * 3600e3);
       const fr = r();
       const force = fr < 0.45 ? "military" : fr < 0.65 ? "armed" : fr < 0.85 ? "police" : "unattributed";
+      const KITS = ["USA", "UKR", "RUS", "GBR", "FRA", "DEU", "CHN", "IND", "NGA", "SDN", "ISR", "MMR"];
+      const c1 = KITS[Math.floor(r() * KITS.length)], c2 = KITS[Math.floor(r() * KITS.length)];
       events.push({
-        key: `demo${n}`, id: `demo${n++}`, cat, code, force, targets: [], title: TITLES[cat] + " (SIMULATED)",
+        key: `demo${n}`, id: `demo${n++}`, cat, code, force, c1, c2, targets: force === "military" && r() < 0.6 ? ["military"] : [], title: TITLES[cat] + " (SIMULATED)",
         lat: lat + (r() - 0.5) * 2.2, lon: lon + (r() - 0.5) * 2.8, place, country: "", precision: 4,
         actors: [], urls: [], reports: 1 + Math.floor(r() * 9), mentions: 1, first: t, last: t, source: "DEMO",
         ...(() => { const v = r(); return v < 0.7 ? { status: "verified", reason: "Simulated: verified." } : v < 0.9 ? { status: "unverified", reason: "Simulated: no violence terms in coverage." } : { status: "filtered", reason: "Simulated: coverage reads as non-violent news." }; })(),

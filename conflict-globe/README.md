@@ -48,6 +48,15 @@ Every event is classified by **who started it**, using the actor-type codes GDEL
 * Use the **Who acted** filter in the feed panel to show or hide each force.
 * The rule is deliberately strict, so real military actions that the news coding attributes only to a country (e.g. `RUS`) appear as **Unattributed**.
 
+## National kit
+
+Animated soldiers wear a stylised version of **their military's camouflage**, with a flag patch on the shoulder and the identification armbands used in the field. For example, Ukrainian forces wear yellow tape and Russian forces white tape. Tanks carry national colours and a flag decal. About 25 militaries are defined in `js/uniforms.js`; unknown countries get a generic olive kit with no flag.
+
+* The **initiating side** wears the kit of GDELT's Actor-1 country. The **other side** wears Actor-2's kit when that actor is identified as a military or police force. Otherwise it gets a generic kit.
+* **Armed groups** are drawn as irregular fighters with no flag, so a group is never attributed to a state.
+* **Police** wear police uniforms with their country's flag patch.
+* **Skin tones are varied at random within every group and are never assigned by country or region.** Militaries are multi-ethnic, and mapping appearance to nationality would be stereotyping, not accuracy.
+
 ## Data sources and limits (please read)
 
 | Layer | Source | Latency | What it is |

@@ -14,7 +14,8 @@
 // (verify.js); unverified or filtered events are never animated. No public source publishes the
 // live positions of individual soldiers or vehicles.
 
-import { sprites } from "../sprites.js";
+import { sprites, kitSprites } from "../sprites.js";
+import { skinTone } from "../uniforms.js";
 
 const C = window.Cesium;
 const MAX_GROUPS = 32;
@@ -57,7 +58,6 @@ class Anim {
   destroy(coll) { for (const b of this.bbs) coll.remove(b); }
 }
 
-const SIDE_B = new C.Color(1.0, 0.86, 0.72, 1);
 const WHITE = C.Color.WHITE;
 const scratch = new C.Cartesian3();
 
@@ -76,8 +76,11 @@ class Group {
   }
 
   anim(name, width, extra = {}) {
-    const S = sprites();
-    return new Anim(this.layer.coll, S[name], {
+    return this.animFrames(sprites()[name], width, extra);
+  }
+
+  animFrames(frames, width, extra = {}) {
+    return new Anim(this.layer.coll, frames, {
       width, height: width,
       scaleByDistance: UNIT_SCALE,
       distanceDisplayCondition: UNIT_DDC,
@@ -93,13 +96,30 @@ class Group {
   }
 
   // ----------------------------------------------------------- unit factories
-  soldier(side, cx, cn, style = this.style) {
+  /** Who is on each side: side 0 = the initiator, side 1 = the other actor. */
+  sideKit(side) {
+    if (side === 0) return { style: this.style, country: this.style === "fighter" ? null : this.ev.c1 };
+    const t = this.ev.targets || [];
+    if (t.includes("military")) return { style: "soldier", country: this.ev.c2 };
+    if (t.includes("police")) return { style: "police", country: this.ev.c2 };
+    if (t.includes("armed")) return { style: "fighter", country: null };
+    return { style: this.style === "police" ? "police" : "soldier", country: this.style === "police" ? this.ev.c1 : null }; // unknown side: generic kit, no flag
+  }
+
+  figureAnims(style, country, width = 26) {
+    // Skin tone is chosen per figure at random, independent of nationality.
+    const set = kitSprites("figure", style === "fighter" ? null : country, skinTone(this.r), style);
+    return { R: this.animFrames(set.R, width), L: this.animFrames(set.L, width), FR: this.animFrames(set.FR, width), FL: this.animFrames(set.FL, width) };
+  }
+
+  soldier(side, cx, cn, styleOverride) {
     const r = this.r;
     const face = this.axis + (side ? Math.PI : 0);
+    const k = styleOverride ? { style: styleOverride, country: this.ev.c1 } : this.sideKit(side);
     const u = {
-      a: { R: this.anim(`${style}R`, 26), L: this.anim(`${style}L`, 26), FR: this.anim(`${style}FireR`, 26), FL: this.anim(`${style}FireL`, 26) },
+      a: this.figureAnims(k.style, k.country),
       e: cx + (r() - 0.5) * 160, n: cn + (r() - 0.5) * 160, te: cx, tn: cn, mode: "walk", timer: r() * 4,
-      color: side && style !== "police" ? SIDE_B : WHITE, cx, cn, face, phase: r() * 6,
+      color: WHITE, cx, cn, face, phase: r() * 6,
     };
     u.update = (dt, t) => {
       u.timer -= dt;
@@ -121,9 +141,11 @@ class Group {
     return this.add(u);
   }
 
-  tank(cx, cn, radius) {
+  tank(cx, cn, radius, country = this.ev.c1) {
     const r = this.r;
-    const u = { a: { move: this.topDown("tank", 34), fire: this.topDown("tankFire", 34) }, w: (6 + r() * 5) / radius, ph: r() * 6.28, fireAt: 2 + r() * 5, fireT: 0 };
+    const set = kitSprites("tank", this.style === "fighter" ? null : country);
+    const td = { alignedAxis: C.Cartesian3.UNIT_Z };
+    const u = { a: { move: this.animFrames(set.move, 34, td), fire: this.animFrames(set.fire, 34, td) }, w: (6 + r() * 5) / radius, ph: r() * 6.28, fireAt: 2 + r() * 5, fireT: 0 };
     u.update = (dt, t) => {
       const th = t * u.w + u.ph;
       const e = cx + radius * Math.cos(th), n = cn + radius * 0.55 * Math.sin(2 * th);
@@ -219,7 +241,10 @@ class Group {
     const L = 3200, v = 9, h = this.axis;
     for (let i = 0; i < count; i++) {
       const isVeh = vehicle && i % 3 === 0;
-      const u = { a: isVeh ? { t: this.topDown(vehicle, 32) } : { R: this.anim(`${style}R`, 24), L: this.anim(`${style}L`, 24) }, off: i * spacing, lat: isVeh ? 0 : (i % 2 ? 22 : -22) };
+      const veh = isVeh && vehicle === "tank"
+        ? { t: this.animFrames(kitSprites("tank", style === "fighter" ? null : this.ev.c1).move, 32, { alignedAxis: C.Cartesian3.UNIT_Z }) }
+        : isVeh ? { t: this.topDown(vehicle, 32) } : null;
+      const u = { a: veh || this.figureAnims(style, this.ev.c1, 24), off: i * spacing, lat: isVeh ? 0 : (i % 2 ? 22 : -22) };
       u.update = (dt, t) => {
         const s = ((t * v + u.off) % L) - L / 2;
         const e = Math.sin(h) * s + Math.cos(h) * u.lat, n = Math.cos(h) * s - Math.sin(h) * u.lat;
@@ -294,7 +319,7 @@ class Group {
     // Law enforcement only: officers on foot and patrol cars, no military kit.
     const r = this.r, cat = this.ev.cat;
     const officers = cat === "mobilize" ? 0 : 3 + Math.floor(r() * 3);
-    for (let i = 0; i < officers; i++) this.soldier(i % 2, (r() - 0.5) * 120, (r() - 0.5) * 120, "police");
+    for (let i = 0; i < officers; i++) this.soldier(0, (r() - 0.5) * 120, (r() - 0.5) * 120, "police");
     this.policeCar(0, 0, 160);
     this.policeCar(40, -30, 260);
     if (cat === "mobilize") this.column(9, 150, { vehicle: "policeCar", style: "police" });

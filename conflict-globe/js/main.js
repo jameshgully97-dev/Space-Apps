@@ -3,6 +3,7 @@
 import { CATEGORIES, CAMEO_NAMES, FORCES, STATUSES } from "./config.js";
 import { settings } from "./settings.js";
 import { routeFor } from "./net.js";
+import { uniformFor } from "./uniforms.js";
 import { legendIcon, sprites, radioSprite, forceIcon } from "./sprites.js";
 import { GdeltFeed } from "./feeds/gdelt.js";
 import { AircraftFeed } from "./feeds/adsb.js";
@@ -348,6 +349,7 @@ function selectEvent(e) {
       ${e.confidence ? `<dt>Coding confidence</dt><dd>${e.confidence}% <span class="muted">(GDELT extraction confidence)</span></dd>` : ""}
       <dt>Initiated by</dt><dd>${esc(force.label)}<br><span class="muted small">${esc(force.desc)}</span></dd>
       ${targets.length ? `<dt>Target</dt><dd>${esc([...new Set(targets)].join(", "))}</dd>` : ""}
+      ${(e.force === "military" || e.force === "police") && e.c1 ? `<dt>Kit shown</dt><dd>${(() => { const k = uniformFor(e.c1); return k.name ? `${esc(k.name)}${e.force === "military" ? ` — ${esc(k.pattern)}` : ""}` : `${esc(e.c1)} (generic kit)`; })()}${e.c2 && (e.targets || []).some((t) => t === "military" || t === "police") ? ` vs ${(() => { const k = uniformFor(e.c2); return k.name ? esc(k.name) : esc(e.c2); })()}` : ""}<br><span class="muted small">Uniform, flag patch and vehicle colours are stylised; skin tones are varied at random, not by nationality.</span></dd>` : ""}
       <dt>Reports</dt><dd>${e.reports} merged report${e.reports > 1 ? "s" : ""}</dd>
       <dt>First / latest</dt><dd>${new Date(e.first).toISOString().slice(0, 16).replace("T", " ")} / ${new Date(e.last).toISOString().slice(11, 16)} UTC</dd>
       <dt>Location</dt><dd>${e.lat.toFixed(3)}, ${e.lon.toFixed(3)} <span class="muted">(${precision})</span></dd>

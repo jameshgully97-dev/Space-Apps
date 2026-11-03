@@ -19,7 +19,7 @@ import { settings } from "../settings.js";
 
 const COL = {
   id: 0, actor1Code: 5, actor1: 6, actor1Country: 7, actor1Types: [12, 13, 14],
-  actor2Code: 15, actor2: 16, actor2Types: [22, 23, 24], root: 25, code: 26, base: 27, rootCode: 28,
+  actor2Code: 15, actor2: 16, actor2Country: 17, actor2Types: [22, 23, 24], root: 25, code: 26, base: 27, rootCode: 28,
   goldstein: 30, mentions: 31, sources: 32, articles: 33, tone: 34,
   geoType: 51, geoName: 52, geoCountry: 53, lat: 56, lon: 57, added: 59, url: 60,
 };
@@ -51,6 +51,7 @@ export function parseGdelt(tsv) {
       id: f[COL.id], code, cat, lat, lon, geoType,
       place: f[COL.geoName], country: f[COL.geoCountry],
       actor1: f[COL.actor1], actor2: f[COL.actor2],
+      c1: f[COL.actor1Country] || "", c2: f[COL.actor2Country] || "",
       // The force is the initiating actor's; the other actor is only the target.
       force: forceOfActor(f[COL.actor1Code], COL.actor1Types.map((i) => f[i])),
       target: f[COL.actor2Code] || f[COL.actor2] ? forceOfActor(f[COL.actor2Code], COL.actor2Types.map((i) => f[i])) : null,
@@ -88,7 +89,7 @@ export function aggregate(records, mentions = new Map()) {
     let g = groups.get(key);
     if (!g) {
       g = {
-        key, id: "g" + r.id, cat: r.cat, code: r.code, force: r.force, targets: new Set(), title: CAMEO_NAMES[r.code] || CAMEO_NAMES[r.code.slice(0, 3)] || `CAMEO ${r.code}`,
+        key, id: "g" + r.id, cat: r.cat, code: r.code, force: r.force, targets: new Set(), c1s: new Map(), c2s: new Map(), title: CAMEO_NAMES[r.code] || CAMEO_NAMES[r.code.slice(0, 3)] || `CAMEO ${r.code}`,
         lat: r.lat, lon: r.lon, place: r.place, country: r.country, precision: r.geoType,
         actors: new Set(), urls: new Set(), reports: 0, mentions: 0, first: r.time, last: r.time, source: "GDELT",
       };
@@ -97,6 +98,8 @@ export function aggregate(records, mentions = new Map()) {
     g.reports += 1;
     g.mentions += r.mentions;
     if (r.target) g.targets.add(r.target);
+    if (r.c1) g.c1s.set(r.c1, (g.c1s.get(r.c1) || 0) + 1);
+    if (r.c2) g.c2s.set(r.c2, (g.c2s.get(r.c2) || 0) + 1);
     if (r.actor1) g.actors.add(r.actor1);
     if (r.actor2) g.actors.add(r.actor2);
     if (r.url) g.urls.add(r.url);
@@ -115,8 +118,11 @@ export function aggregate(records, mentions = new Map()) {
     // When the coverage says what happened, trust it over the machine code.
     const cat = v.status === "verified" && v.evidenceCat ? v.evidenceCat : g.cat;
     const title = v.status === "verified" && v.evidenceCat ? EVIDENCE_TITLES[v.evidenceCat] : coded;
+    const top = (m) => [...m].sort((a, b) => b[1] - a[1])[0]?.[0] || "";
+    const { c1s, c2s, ...rest } = g;
     return {
-      ...g, cat, title, coded, codedCat: g.cat,
+      ...rest, cat, title, coded, codedCat: g.cat,
+      c1: top(c1s), c2: top(c2s), // most-reported country of the initiator / the other side
       status: v.status, reason: v.reason, evidence: v.evidence, counterEvidence: v.counterEvidence, headlines: v.headlines,
       actors: [...g.actors].slice(0, 6), urls: urls.slice(0, 6), targets: [...g.targets],
     };
