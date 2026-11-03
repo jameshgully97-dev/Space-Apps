@@ -1,0 +1,49 @@
+name: SkyTrack
+options:
+  bundleIdPrefix: com.spaceapps
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+packages:
+  OrbitCore:
+    path: Packages/OrbitCore
+targets:
+  SkyTrack:
+    type: application
+    platform: iOS
+    sources:
+      - path: App/SkyTrack
+    dependencies:
+      - package: OrbitCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.spaceapps.skytrack
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_STYLE: Automatic
+        # Set your Apple team ID here (or pick it in Xcode > Signing & Capabilities).
+        DEVELOPMENT_TEAM: ""
+        GENERATE_INFOPLIST_FILE: YES
+    info:
+      path: App/SkyTrack/Info.plist
+      properties:
+        CFBundleDisplayName: SkyTrack
+        UILaunchScreen: {}
+        UIRequiredDeviceCapabilities: [arm64]
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        NSCameraUsageDescription: SkyTrack shows satellites on top of the live camera view of the sky.
+        NSLocationWhenInUseUsageDescription: Your location is needed to work out which satellites are above you.
+        NSMotionUsageDescription: Motion sensors tell SkyTrack where your phone is pointing in the sky.
+schemes:
+  SkyTrack:
+    build:
+      targets:
+        SkyTrack: all
+    run:
+      config: Debug
