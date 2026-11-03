@@ -31,6 +31,7 @@ export function demoEvents() {
         key: `demo${n}`, id: `demo${n++}`, cat, code, force, targets: [], title: TITLES[cat] + " (SIMULATED)",
         lat: lat + (r() - 0.5) * 2.2, lon: lon + (r() - 0.5) * 2.8, place, country: "", precision: 4,
         actors: [], urls: [], reports: 1 + Math.floor(r() * 9), mentions: 1, first: t, last: t, source: "DEMO",
+        ...(() => { const v = r(); return v < 0.7 ? { status: "verified", reason: "Simulated: verified." } : v < 0.9 ? { status: "unverified", reason: "Simulated: no violence terms in coverage." } : { status: "filtered", reason: "Simulated: coverage reads as non-violent news." }; })(),
       });
     }
   }

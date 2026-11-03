@@ -48,6 +48,8 @@
       <span id="feed-count" class="muted">0</span>
     </div>
     <input id="feed-search" type="search" placeholder="Filter by place, actor, type…" autocomplete="off">
+    <div class="filter-label">Verification</div>
+    <div id="status-filters" class="cat-filters force-filters"></div>
     <div class="filter-label">Who acted</div>
     <div id="force-filters" class="cat-filters force-filters"></div>
     <div class="filter-label">What happened</div>
@@ -131,6 +133,13 @@
         which machine-codes world news every 15 minutes. Events are plotted where the article places the action;
         country-level geocodes are dropped. Coding is automated and can be wrong, duplicated or refer to past events —
         open the source articles before relying on any single marker.</p>
+      <p><b>Verification.</b> GDELT codes news automatically, so figurative language ("legal battle", "fight over the budget",
+        "playoff clash") can be coded as combat. Every event is checked against the headlines of all the articles that mention it.
+        <b>Verified</b> events have coverage that uses unambiguous physical-violence terms (killed, shelling, airstrike, gunmen, explosion…);
+        words like battle, fight, attack, war, strike or clash never count on their own. <b>Filtered</b> events read as legal, political,
+        sports, business, health or entertainment news and are hidden by default. Everything else is <b>Unverified</b>: shown faded,
+        never animated. When the coverage names what happened (e.g. "shelling"), that is shown instead of the machine coding.
+        Headlines are read in English only, so non-English coverage stays Unverified.</p>
       <p><b>Who acted.</b> Every event is classified by the actor GDELT codes as its <em>initiator</em>, never by the kind of violence:
         <b>Military</b> needs an explicit armed-forces code (MIL); <b>Armed group</b> means rebels, insurgents, separatists or unaligned armed
         forces; <b>Police</b> means law enforcement (COP; police wins if an actor carries both codes); everything else, including events

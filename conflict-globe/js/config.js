@@ -14,6 +14,7 @@ export const REFRESH = {
 export const ENDPOINTS = {
   gdeltLastUpdate: "http://data.gdeltproject.org/gdeltv2/lastupdate.txt",
   gdeltFile: (stamp) => `http://data.gdeltproject.org/gdeltv2/${stamp}.export.CSV.zip`,
+  gdeltMentions: (stamp) => `http://data.gdeltproject.org/gdeltv2/${stamp}.mentions.CSV.zip`,
   // readsb-compatible community ADS-B aggregators (same JSON schema). Tried in order.
   aircraftProviders: [
     {
@@ -121,6 +122,18 @@ export function categoryForCameo(code) {
 
 // Neutral wording: CAMEO's own labels say "military" for codes GDELT also
 // applies to police and criminal violence, so the actor is shown separately.
+// Titles used when the coverage itself says what happened (see verify.js).
+export const EVIDENCE_TITLES = {
+  drone: "Drone strike", air: "Airstrike", armor: "Shelling / artillery fire", bombing: "Explosion / missile or bomb strike",
+  ground: "Gunfire / shooting", naval: "Naval incident", massviol: "Mass killing",
+};
+
+export const STATUSES = {
+  verified:   { label: "Verified",   desc: "Coverage headlines describe physical violence (e.g. killed, shelling, airstrike, gunmen)." },
+  unverified: { label: "Unverified", desc: "Machine-coded as conflict, but the coverage has no unambiguous violence terms. Shown dimmed, never animated." },
+  filtered:   { label: "Filtered",   desc: "Coverage reads as legal, political, sports, business, health or entertainment news: the combat coding is likely figurative (e.g. \"legal battle\")." },
+};
+
 export const CAMEO_NAMES = {
   "150": "Show of force", "152": "Alert level raised", "154": "Forces mobilized",
   "180": "Unconventional violence", "181": "Abduction / hostage taking", "182": "Physical assault",

@@ -19,6 +19,7 @@ const DEFAULTS = {
   demo: false,
   hiddenCats: [],
   hiddenForces: [],
+  hiddenStatus: ["filtered"],
 };
 
 let state = { ...DEFAULTS };

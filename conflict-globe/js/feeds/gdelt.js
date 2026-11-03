@@ -6,8 +6,14 @@
 // Each event is also classified by WHO initiated it (military, armed group,
 // police, unattributed) from GDELT's actor-type codes — see forceOfActor().
 // The violence code alone never makes an event "military".
+//
+// Each event is then checked against the headlines of ALL articles that
+// mention it (from GDELT's companion "mentions" files) — see verify.js — so
+// figurative coverage ("legal battle", "playoff clash") is filtered out and
+// only events whose coverage describes physical violence are animated.
 
-import { ENDPOINTS, categoryForCameo, CAMEO_NAMES, forceOfActor } from "../config.js";
+import { ENDPOINTS, categoryForCameo, CAMEO_NAMES, EVIDENCE_TITLES, forceOfActor } from "../config.js";
+import { assessEvent } from "./verify.js";
 import { smartFetch, unzipFirstFile } from "../net.js";
 import { settings } from "../settings.js";
 
@@ -56,8 +62,25 @@ export function parseGdelt(tsv) {
   return out;
 }
 
-/** Merge reports of the same event type at (nearly) the same place. */
-export function aggregate(records) {
+/** Parse a GDELT mentions file: event id -> { urls, confidence }. */
+export function parseMentions(tsv, wanted) {
+  const out = new Map();
+  for (const line of tsv.split("\n")) {
+    if (!line) continue;
+    const f = line.split("\t");
+    if (f.length < 12 || f[3] !== "1") continue; // MentionType 1 = web article
+    const id = f[0];
+    if (wanted && !wanted.has(id)) continue;
+    let m = out.get(id);
+    if (!m) out.set(id, (m = { urls: new Set(), confidence: 0 }));
+    if (/^https?:\/\//.test(f[5]) && m.urls.size < 10) m.urls.add(f[5]);
+    m.confidence = Math.max(m.confidence, Number(f[11]) || 0);
+  }
+  return out;
+}
+
+/** Merge reports of the same event type at (nearly) the same place, then verify. */
+export function aggregate(records, mentions = new Map()) {
   const groups = new Map();
   for (const r of records) {
     // Force is part of the key so military and police reports never merge.
@@ -76,11 +99,28 @@ export function aggregate(records) {
     if (r.target) g.targets.add(r.target);
     if (r.actor1) g.actors.add(r.actor1);
     if (r.actor2) g.actors.add(r.actor2);
-    if (r.url && g.urls.size < 6) g.urls.add(r.url);
+    if (r.url) g.urls.add(r.url);
+    const m = mentions.get(r.id);
+    if (m) {
+      for (const u of m.urls) if (g.urls.size < 16) g.urls.add(u);
+      g.confidence = Math.max(g.confidence || 0, m.confidence);
+    }
     g.first = Math.min(g.first, r.time);
     g.last = Math.max(g.last, r.time);
   }
-  return [...groups.values()].map((g) => ({ ...g, actors: [...g.actors].slice(0, 6), urls: [...g.urls], targets: [...g.targets] }));
+  return [...groups.values()].map((g) => {
+    const urls = [...g.urls];
+    const v = assessEvent(urls);
+    const coded = g.title;
+    // When the coverage says what happened, trust it over the machine code.
+    const cat = v.status === "verified" && v.evidenceCat ? v.evidenceCat : g.cat;
+    const title = v.status === "verified" && v.evidenceCat ? EVIDENCE_TITLES[v.evidenceCat] : coded;
+    return {
+      ...g, cat, title, coded, codedCat: g.cat,
+      status: v.status, reason: v.reason, evidence: v.evidence, counterEvidence: v.counterEvidence, headlines: v.headlines,
+      actors: [...g.actors].slice(0, 6), urls: urls.slice(0, 6), targets: [...g.targets],
+    };
+  });
 }
 
 export class GdeltFeed {
@@ -88,6 +128,7 @@ export class GdeltFeed {
     this.onData = onData;
     this.onStatus = onStatus;
     this.files = new Map(); // stamp -> records[]
+    this.mentions = new Map(); // stamp -> Map(eventId -> { urls, confidence })
     this.timer = null;
     this.latest = null;
   }
@@ -110,7 +151,7 @@ export class GdeltFeed {
       const hours = settings.get("historyHours");
       const wanted = [];
       for (let t = latest; t > latest - hours * 3600e3; t -= 15 * 60e3) wanted.push(toStamp(t));
-      for (const s of this.files.keys()) if (!wanted.includes(s)) this.files.delete(s);
+      for (const s of this.files.keys()) if (!wanted.includes(s)) { this.files.delete(s); this.mentions.delete(s); }
       const missing = wanted.filter((s) => !this.files.has(s));
       let done = 0, failed = 0;
       const worker = async () => {
@@ -119,6 +160,13 @@ export class GdeltFeed {
           try {
             const zip = await smartFetch(ENDPOINTS.gdeltFile(stamp), { type: "bytes", timeout: 45000 });
             this.files.set(stamp, parseGdelt(await unzipFirstFile(zip)));
+            // Mentions are optional: without them we verify on the first article only.
+            try {
+              const mz = await smartFetch(ENDPOINTS.gdeltMentions(stamp), { type: "bytes", timeout: 60000 });
+              const ids = new Set();
+              for (const recs of this.files.values()) for (const r of recs) ids.add(r.id);
+              this.mentions.set(stamp, parseMentions(await unzipFirstFile(mz), ids));
+            } catch { /* keep going */ }
           } catch (e) {
             failed++;
             if (failed > 3 && done === 0) throw e;
@@ -140,7 +188,13 @@ export class GdeltFeed {
     const minSources = settings.get("minSources");
     const all = [];
     for (const recs of this.files.values()) all.push(...recs);
-    const events = aggregate(all).filter((e) => e.reports >= minSources);
+    const mentions = new Map();
+    for (const m of this.mentions.values()) for (const [id, v] of m) {
+      const cur = mentions.get(id);
+      if (!cur) mentions.set(id, { urls: new Set(v.urls), confidence: v.confidence });
+      else { for (const u of v.urls) cur.urls.add(u); cur.confidence = Math.max(cur.confidence, v.confidence); }
+    }
+    const events = aggregate(all, mentions).filter((e) => e.reports >= minSources);
     this.onData(events);
   }
 }

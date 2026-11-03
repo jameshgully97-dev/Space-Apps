@@ -29,6 +29,7 @@ export class EventLayer {
     this.events = new Map();
     this.hidden = new Set();
     this.hiddenForces = new Set();
+    this.hiddenStatus = new Set(["filtered"]);
   }
 
   setEvents(list) {
@@ -38,8 +39,12 @@ export class EventLayer {
       seen.add(ev.key);
       const existing = this.events.get(ev.key);
       if (existing) {
+        const changed = existing.ev.status !== ev.status || existing.ev.cat !== ev.cat;
         Object.assign(existing.ev, ev);
-        continue;
+        if (!changed) continue;
+        // Verification can change as more coverage arrives: rebuild the marker.
+        this.ds.entities.remove(existing.entity);
+        this.events.delete(ev.key);
       }
       ev.force ||= "unattributed";
       const cat = CATEGORIES[ev.cat];
@@ -47,6 +52,8 @@ export class EventLayer {
         position: C.Cartesian3.fromDegrees(ev.lon, ev.lat, 0),
         billboard: {
           image: markerSprite(ev.cat, cat.color, cat.glyph, ev.force),
+          // Unverified / filtered events are drawn faded so they never read as confirmed violence.
+          color: ev.status === "verified" || !ev.status ? C.Color.WHITE : C.Color.WHITE.withAlpha(ev.status === "filtered" ? 0.35 : 0.55),
           width: 30, height: 30,
           heightReference: C.HeightReference.CLAMP_TO_GROUND,
           scaleByDistance: new C.NearFarScalar(3e4, 1.15, 1.6e7, 0.6),
@@ -70,12 +77,17 @@ export class EventLayer {
 
   pulse(key) {
     const rec = this.events.get(key);
-    if (!rec || Date.now() - rec.ev.last > 3600e3) return 1;
+    if (!rec || rec.ev.status !== "verified" || Date.now() - rec.ev.last > 3600e3) return 1;
     const p = (performance.now() / 1400 + rec.phase) % 1;
     return 1 + 0.28 * Math.sin(p * Math.PI);
   }
 
-  isShown(ev) { return !this.hidden.has(ev.cat) && !this.hiddenForces.has(ev.force); }
+  isShown(ev) { return !this.hidden.has(ev.cat) && !this.hiddenForces.has(ev.force) && !this.hiddenStatus.has(ev.status || "verified"); }
+
+  setHiddenStatus(set) {
+    this.hiddenStatus = new Set(set);
+    for (const rec of this.events.values()) rec.entity.show = this.isShown(rec.ev);
+  }
 
   setHiddenCategories(set) {
     this.hidden = new Set(set);

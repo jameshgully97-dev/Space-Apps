@@ -1,6 +1,6 @@
 // Conflict Globe — application entry point.
 
-import { CATEGORIES, CAMEO_NAMES, FORCES } from "./config.js";
+import { CATEGORIES, CAMEO_NAMES, FORCES, STATUSES } from "./config.js";
 import { settings } from "./settings.js";
 import { routeFor } from "./net.js";
 import { legendIcon, sprites, radioSprite, forceIcon } from "./sprites.js";
@@ -202,9 +202,10 @@ function applySetting(k, v) {
     case "showRadio": radioLayer.setVisible(v); break;
     case "hiddenCats": eventLayer.setHiddenCategories(v); unitLayer.setHiddenCategories(v); renderFeed(); break;
     case "hiddenForces": eventLayer.setHiddenForces(v); unitLayer.setHiddenForces(v); renderFeed(); break;
+    case "hiddenStatus": eventLayer.setHiddenStatus(v); renderFeed(); break;
   }
 }
-for (const k of ["showEvents", "showUnits", "showMilAir", "showNearbyAir", "showLabels", "showBorders", "showRadio", "hiddenCats", "hiddenForces"]) applySetting(k, settings.get(k));
+for (const k of ["showEvents", "showUnits", "showMilAir", "showNearbyAir", "showLabels", "showBorders", "showRadio", "hiddenCats", "hiddenForces", "hiddenStatus"]) applySetting(k, settings.get(k));
 settings.onChange(applySetting);
 
 document.querySelectorAll("[data-set]").forEach((el) => {
@@ -238,6 +239,21 @@ for (const [key, f] of Object.entries(FORCES)) {
   };
   forceFilters.appendChild(b);
 }
+// Verification filter: does the coverage actually describe violence?
+const statusFilters = $("#status-filters");
+for (const [key, st] of Object.entries(STATUSES)) {
+  const b = document.createElement("button");
+  b.innerHTML = `<span class="sdot s-${key}"></span>${esc(st.label)} <span class="cnt" data-status-count="${key}">0</span>`;
+  b.title = st.desc;
+  b.setAttribute("aria-pressed", String(!settings.get("hiddenStatus").includes(key)));
+  b.onclick = () => {
+    const hidden = new Set(settings.get("hiddenStatus"));
+    hidden.has(key) ? hidden.delete(key) : hidden.add(key);
+    b.setAttribute("aria-pressed", String(!hidden.has(key)));
+    settings.set("hiddenStatus", [...hidden]);
+  };
+  statusFilters.appendChild(b);
+}
 const catFilters = $("#cat-filters");
 for (const [key, cat] of Object.entries(CATEGORIES)) {
   const b = document.createElement("button");
@@ -266,13 +282,19 @@ function renderFeed() {
   const q = $("#feed-search").value.trim().toLowerCase();
   const hidden = new Set(settings.get("hiddenCats"));
   const hiddenF = new Set(settings.get("hiddenForces"));
+  const hiddenS = new Set(settings.get("hiddenStatus"));
   const counts = Object.fromEntries(Object.keys(FORCES).map((k) => [k, 0]));
-  for (const e of events) if (!hidden.has(e.cat)) counts[e.force || "unattributed"]++;
+  const sCounts = Object.fromEntries(Object.keys(STATUSES).map((k) => [k, 0]));
+  for (const e of events) {
+    if (!hidden.has(e.cat) && !hiddenS.has(e.status)) counts[e.force || "unattributed"]++;
+    if (!hidden.has(e.cat) && !hiddenF.has(e.force)) sCounts[e.status || "verified"]++;
+  }
   document.querySelectorAll("[data-force-count]").forEach((el) => (el.textContent = counts[el.dataset.forceCount].toLocaleString()));
+  document.querySelectorAll("[data-status-count]").forEach((el) => (el.textContent = sCounts[el.dataset.statusCount].toLocaleString()));
   const list = events
-    .filter((e) => !hidden.has(e.cat) && !hiddenF.has(e.force))
-    .filter((e) => !q || `${e.title} ${e.place} ${e.actors.join(" ")} ${CATEGORIES[e.cat].label} ${FORCES[e.force].label}`.toLowerCase().includes(q))
-    .sort((a, b) => b.last - a.last || b.reports - a.reports);
+    .filter((e) => !hidden.has(e.cat) && !hiddenF.has(e.force) && !hiddenS.has(e.status || "verified"))
+    .filter((e) => !q || `${e.title} ${e.place} ${e.actors.join(" ")} ${CATEGORIES[e.cat].label} ${FORCES[e.force].label} ${(e.headlines || []).map((h) => h.text).join(" ")}`.toLowerCase().includes(q))
+    .sort((a, b) => (a.status === "verified" ? 0 : 1) - (b.status === "verified" ? 0 : 1) || b.last - a.last || b.reports - a.reports);
   $("#feed-count").textContent = `${list.length.toLocaleString()} events`;
   const ol = $("#feed-list");
   if (!list.length) {
@@ -280,9 +302,9 @@ function renderFeed() {
     return;
   }
   ol.innerHTML = list.slice(0, 300).map((e) => `
-    <li data-key="${esc(e.key)}" class="${e.key === selectedKey ? "sel" : ""}">
+    <li data-key="${esc(e.key)}" class="${e.key === selectedKey ? "sel" : ""} st-${e.status || "verified"}">
       <span class="bar" style="background:${CATEGORIES[e.cat].color}"></span>
-      <span><span class="ftag" style="--fc:${FORCES[e.force].color}">${esc(FORCES[e.force].short)}</span> <span class="t">${esc(e.title)}</span><br><span class="p">${esc(e.place)}</span></span>
+      <span><span class="ftag" style="--fc:${FORCES[e.force].color}">${esc(FORCES[e.force].short)}</span>${e.status && e.status !== "verified" ? ` <span class="stag s-${e.status}">${esc(STATUSES[e.status].label)}</span>` : ""} <span class="t">${esc(e.title)}</span><br><span class="p">${esc(e.place)}</span>${e.headlines?.[0] ? `<br><span class="hl">“${esc(e.headlines[0].text)}”</span>` : ""}</span>
       <span class="ago">${Date.now() - e.last < 3600e3 ? '<span class="new">NEW</span> ' : ""}${ago(e.last)}<span class="n">${e.reports}×</span></span>
     </li>`).join("");
 }
@@ -317,9 +339,13 @@ function selectEvent(e) {
   $("#info-body").innerHTML = `
     <span class="tag" style="background:${force.color};color:#fff">${esc(force.label)}</span>
     <span class="tag" style="background:${cat.color}">${esc(cat.label)}</span>
+    <span class="tag s-${e.status || "verified"}">${esc(STATUSES[e.status || "verified"].label)}</span>
     <h3>${esc(e.title)}</h3>
     <div class="sub">${esc(e.place)}</div>
     <dl>
+      <dt>Verification</dt><dd>${esc(e.reason || STATUSES.verified.desc)}</dd>
+      ${e.coded && e.coded !== e.title ? `<dt>Machine coding</dt><dd>${esc(e.coded)} <span class="muted">(replaced by what the coverage describes)</span></dd>` : ""}
+      ${e.confidence ? `<dt>Coding confidence</dt><dd>${e.confidence}% <span class="muted">(GDELT extraction confidence)</span></dd>` : ""}
       <dt>Initiated by</dt><dd>${esc(force.label)}<br><span class="muted small">${esc(force.desc)}</span></dd>
       ${targets.length ? `<dt>Target</dt><dd>${esc([...new Set(targets)].join(", "))}</dd>` : ""}
       <dt>Reports</dt><dd>${e.reports} merged report${e.reports > 1 ? "s" : ""}</dd>
@@ -329,9 +355,10 @@ function selectEvent(e) {
       <dt>CAMEO code</dt><dd>${esc(e.code)} — ${esc(CAMEO_NAMES[e.code] || "")}</dd>
       <dt>Source</dt><dd>${esc(e.source)}</dd>
     </dl>
-    ${e.urls.length ? `<b>Source articles</b><ol class="links">${e.urls.map((u) => `<li><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(new URL(u).hostname.replace(/^www\./, ""))}</a></li>`).join("")}</ol>` : ""}
+    ${e.headlines?.length ? `<b>What the coverage says</b><ol class="links">${e.headlines.map((h) => `<li><a href="${esc(h.url)}" target="_blank" rel="noopener noreferrer">${esc(h.text)}</a> <span class="muted small">— ${esc(new URL(h.url).hostname.replace(/^www\./, ""))}${h.kind === "kinetic" ? "" : ` · ${h.kind === "figurative" ? "non-violent" : h.kind === "mixed" ? "mixed" : "no violence terms"}`}</span></li>`).join("")}</ol>`
+      : e.urls.length ? `<b>Source articles</b><ol class="links">${e.urls.map((u) => `<li><a href="${esc(u)}" target="_blank" rel="noopener noreferrer">${esc(new URL(u).hostname.replace(/^www\./, ""))}</a></li>`).join("")}</ol>` : ""}
     <div class="btns"><button class="primary" id="info-fly">Zoom to event</button></div>
-    <p class="note">${e.force === "unattributed"
+    <p class="note">${e.status && e.status !== "verified" ? "Not animated: the coverage does not confirm physical violence." : e.force === "unattributed"
       ? "No military, armed-group or police actor was identified as the initiator, so no combatants are drawn here."
       : `Figures animated around this point illustrate the reported event (${esc(force.short.toLowerCase())}); they are not tracked positions.`}</p>`;
   $("#info-fly").onclick = () => flyToEvent(e);

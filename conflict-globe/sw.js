@@ -1,9 +1,9 @@
 // Service worker: makes the app installable (Edge → "Install Conflict Globe")
 // and caches the app shell + Cesium library. Live data is never cached.
-const VERSION = "cg-v3";
+const VERSION = "cg-v4";
 const SHELL = ["./", "index.html", "css/app.css", "js/main.js", "js/config.js", "js/net.js", "js/settings.js", "js/sprites.js",
   "js/feeds/gdelt.js", "js/feeds/adsb.js", "js/feeds/demo.js", "js/layers/events.js", "js/layers/units.js", "js/layers/aircraft.js", "js/layers/radio.js",
-  "js/feeds/pskreporter.js", "js/ghostnet/plan.js",
+  "js/feeds/pskreporter.js", "js/feeds/verify.js", "js/ghostnet/plan.js",
   "manifest.webmanifest", "icons/icon.svg"];
 
 self.addEventListener("install", (e) => e.waitUntil(caches.open(VERSION).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())));

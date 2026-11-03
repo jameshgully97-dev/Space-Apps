@@ -14,6 +14,23 @@ A real-time 3D globe of **reported armed conflict** and **live military aircraft
 
 Click an event to see its type, place, actors and links to the source articles.
 
+## Verifying events against their coverage
+
+GDELT codes news automatically, so figurative language can be coded as combat: "legal battle over Manhattan zoning", "Senate fight over the budget", "Knicks battle Celtics". To catch this, the app reads the headline words of **every article that mentions an event**. These come from each article's URL, using GDELT's companion *mentions* files. Then it labels the event:
+
+| Status | Rule | On the map |
+|---|---|---|
+| **Verified** | Headlines use unambiguous physical-violence terms: killed, shelling, airstrike, gunmen, explosion, missile, drone strike… | normal marker; animated when zoomed in |
+| **Unverified** | No evidence either way: no readable headline, non-English, or mixed signals such as "police shooting trial verdict" | faded marker, never animated |
+| **Filtered** | Headlines read as legal, political, sports, business, health or entertainment news, with no violence terms | hidden by default (toggle in the feed panel) |
+
+* **Weak words never verify an event on their own:** battle, fight, attack, war, strike, clash, raid.
+* **Idioms are recognised as figurative:** heart attack, think tank, trade war, legal battle, war of words.
+* **Past events don't count:** words such as trial, verdict, anniversary or memorial mark coverage of something that already happened.
+* **The coverage beats the machine code:** when the coverage says what happened, its wording replaces the machine coding. A "use of force" coding whose articles say *shelling* is shown as **Shelling / artillery fire**.
+* **You can check the reasoning:** each event's details card lists the headlines it was judged on and why.
+* **Running the checks:** `node test/verify.test.mjs`
+
 ## Military vs police vs everything else
 
 Every event is classified by **who started it**, using the actor-type codes GDELT gives the initiating actor (Actor1). The kind of violence never decides this.
@@ -90,6 +107,7 @@ js/config.js                endpoints, CAMEO → category, ICAO type → silhoue
 js/net.js                   CORS-aware fetch routing, tiny ZIP reader
 js/sprites.js               all artwork, drawn procedurally on canvas
 js/feeds/                   GDELT, ADS-B, PSKReporter, demo data
+js/feeds/verify.js          headline-based verification of events
 js/ghostnet/plan.js         GhostNet schedule, frequencies, ALE channels
 js/layers/                  event markers, unit scenes, aircraft, radio
 server.ps1 / server.js      local server and feed proxy

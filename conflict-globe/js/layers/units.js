@@ -9,7 +9,9 @@
 //   armed group  → irregular fighters (no air force, no warships)
 //   police       → police officers and patrol cars only
 //   unattributed → no people or vehicles at all, only explosions / fire,
-//                  so violence alone is never drawn as military activity. No public source publishes the
+//                  so violence alone is never drawn as military activity.
+// Scenes are only spawned for events verified against their coverage
+// (verify.js); unverified or filtered events are never animated. No public source publishes the
 // live positions of individual soldiers or vehicles.
 
 import { sprites } from "../sprites.js";
@@ -373,6 +375,8 @@ export class UnitLayer {
     const wanted = [];
     if (this.enabled && height < SPAWN_RANGE) {
       for (const ev of this.getEvents()) {
+        // Only events whose coverage describes physical violence are animated.
+        if (ev.status && ev.status !== "verified") continue;
         if (this.hidden.has(ev.cat) || this.hiddenForces.has(ev.force)) continue;
         let p = this.cartCache.get(ev.key);
         if (!p) { p = C.Cartesian3.fromDegrees(ev.lon, ev.lat, 0); this.cartCache.set(ev.key, p); }
