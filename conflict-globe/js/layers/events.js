@@ -59,7 +59,9 @@ export class EventLayer {
           scaleByDistance: new C.NearFarScalar(3e4, 1.15, 1.6e7, 0.6),
           distanceDisplayCondition: new C.DistanceDisplayCondition(18000, Number.MAX_VALUE),
           disableDepthTestDistance: 3e5,
-          scale: new C.CallbackProperty(() => this.pulse(ev.key), false),
+          // Only events that actually pulse get a per-frame callback; the rest are
+          // constant, which keeps entity updates and re-clustering cheap.
+          scale: ev.status === "verified" && Date.now() - ev.last < 3600e3 ? new C.CallbackProperty(() => this.pulse(ev.key), false) : 1,
         },
         show: this.isShown(ev),
       });

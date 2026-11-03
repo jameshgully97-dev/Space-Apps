@@ -8,9 +8,19 @@ import { uniformFor, SKIN_TONES, drawFlag, paintCamo } from "./uniforms.js";
 const S = 64;
 const OUTLINE = "rgba(10,12,10,0.95)";
 
+// Sprites are drawn in a 64-unit logical space but rasterised at the screen's
+// pixel density (up to 2×) so icons stay crisp on high-DPI Windows displays.
+// Billboards always set an explicit on-screen width/height, so the extra
+// pixels only add sharpness, not size.
+export const SPRITE_SCALE = Math.min(2, Math.max(1, Math.round((window.devicePixelRatio || 1) * 2) / 2));
+
 function canvas(size = S) {
   const c = document.createElement("canvas");
-  c.width = c.height = size;
+  c.width = c.height = Math.round(size * SPRITE_SCALE);
+  c.logical = size;
+  const ctx = c.getContext("2d");
+  ctx.scale(SPRITE_SCALE, SPRITE_SCALE); // later getContext() calls return this same, pre-scaled context
+  ctx.imageSmoothingQuality = "high";
   return c;
 }
 
@@ -93,7 +103,7 @@ function drawSoldier(frame, firing, style = "soldier", kit = null, skin = 2) {
   // kit details that must not be camouflaged
   if (st.vest) { cx.fillStyle = st.vest; cx.fillRect(hipX - 5, hipY - 15, 10, 8); }
   cx.fillStyle = st.belt; cx.fillRect(hipX - 6, hipY - 7, 12, 3);
-  ctx.drawImage(cloth, 0, 0);
+  ctx.drawImage(cloth, 0, 0, 64, 64);
   // flag patch on the shoulder (state forces and police only)
   if (kit?.flag && style !== "fighter") drawFlag(ctx, kit.flag, hipX - 4, hipY - 16, 7, 5);
   // --- head, then helmet / cap
@@ -125,16 +135,17 @@ function drawSoldier(frame, firing, style = "soldier", kit = null, skin = 2) {
     fx.fillStyle = kit.band; fx.fillRect(-2.5, 3, 5, 2.5);
     fx.restore();
   }
-  ctx.drawImage(front, 0, 0);
+  ctx.drawImage(front, 0, 0, 64, 64);
   return c;
 }
 
 function mirror(src) {
-  const c = canvas(src.width);
+  const L = src.logical;
+  const c = canvas(L);
   const ctx = c.getContext("2d");
-  ctx.translate(src.width, 0);
+  ctx.translate(L, 0);
   ctx.scale(-1, 1);
-  ctx.drawImage(src, 0, 0);
+  ctx.drawImage(src, 0, 0, L, L);
   return c;
 }
 

@@ -85,8 +85,8 @@ export class RadioLayer {
       if (s.tx) {
         s.label = this.labels.add({
           position: pos, text: s.call,
-          font: "600 11px system-ui, 'Segoe UI', sans-serif",
-          fillColor: C.Color.fromCssColorString("#d9f7c0"), outlineColor: C.Color.BLACK, outlineWidth: 3,
+          font: "600 22px system-ui, 'Segoe UI', sans-serif", scale: 0.5,
+          fillColor: C.Color.fromCssColorString("#d9f7c0"), outlineColor: C.Color.BLACK, outlineWidth: 5,
           style: C.LabelStyle.FILL_AND_OUTLINE, pixelOffset: new C.Cartesian2(14, -10),
           horizontalOrigin: C.HorizontalOrigin.LEFT,
           distanceDisplayCondition: new C.DistanceDisplayCondition(0, 3.5e6),

@@ -105,6 +105,7 @@
     <span id="st-cursor">—</span>
     <span id="st-alt">—</span>
     <span id="st-units">—</span>
+    <span id="st-fps" class="muted" title="Frame rate and render resolution (× screen pixels)">—</span>
     <span id="st-route" class="muted">—</span>
   </footer>
 
@@ -117,6 +118,13 @@
         <input id="in-ion" type="password" autocomplete="off" placeholder="eyJ…"></label>
       <label>CORS proxy URL <small>— only needed when hosted on the web without the bundled server, e.g. <code>https://your-worker.workers.dev/?url=</code></small>
         <input id="in-proxy" type="url" autocomplete="off" placeholder="(auto: local server)"></label>
+      <label>Graphics quality
+        <select id="in-quality">
+          <option value="auto">Auto — sharpest the GPU can keep smooth (recommended)</option>
+          <option value="high">High — always full screen resolution</option>
+          <option value="balanced">Balanced — standard resolution</option>
+          <option value="low">Low — reduced resolution, 30 fps (battery / older PCs)</option>
+        </select></label>
       <label class="toggle"><input id="in-demo" type="checkbox"> Demo mode (simulated data, for offline presentations)</label>
       <p class="muted">Keys are stored only in this browser.</p>
       <menu>

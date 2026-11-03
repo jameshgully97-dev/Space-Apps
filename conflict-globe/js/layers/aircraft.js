@@ -14,6 +14,7 @@ const MIL_LABEL = C.Color.fromCssColorString("#ffe08a");
 const CIV_LABEL = C.Color.fromCssColorString("#cfe8ff");
 const MIL_TRAIL = C.Color.fromCssColorString("#ffcf4a").withAlpha(0.55);
 const CIV_TRAIL = C.Color.fromCssColorString("#8ecbff").withAlpha(0.35);
+const SELECTED = C.Color.fromCssColorString("#77ccff");
 
 function altitudeMeters(a) {
   if (a.alt_baro === "ground") return 0;
@@ -102,9 +103,10 @@ export class AircraftLayer {
       return b;
     });
     rec.label = this.labels.add({
-      font: "600 12px system-ui, 'Segoe UI', sans-serif",
+      font: "600 24px system-ui, 'Segoe UI', sans-serif", // rendered at 2× then scaled to 12px for crisp text
+      scale: 0.5,
       fillColor: rec.mil ? MIL_LABEL : CIV_LABEL,
-      outlineColor: C.Color.BLACK, outlineWidth: 3,
+      outlineColor: C.Color.BLACK, outlineWidth: 5,
       style: C.LabelStyle.FILL_AND_OUTLINE,
       pixelOffset: new C.Cartesian2(16, -14),
       horizontalOrigin: C.HorizontalOrigin.LEFT,
@@ -159,8 +161,7 @@ export class AircraftLayer {
       const b = rec.anim[fi];
       b.position = pos;
       b.rotation = -C.Math.toRadians(rec.fix.track);
-      if (rec === this.selected) b.color = C.Color.fromCssColorString("#7cf");
-      else b.color = C.Color.WHITE;
+      b.color = rec === this.selected ? SELECTED : C.Color.WHITE;
       rec.label.position = pos;
       rec.label.show = this.showLabels || rec === this.selected;
       if (rec.poly) rec.poly.show = true;

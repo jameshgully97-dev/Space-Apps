@@ -27,6 +27,11 @@ const viewer = new C.Viewer("globe", {
   animation: false, timeline: false, geocoder: false, sceneModePicker: false, baseLayerPicker: false,
   navigationHelpButton: false, fullscreenButton: false, infoBox: false, selectionIndicator: false,
   homeButton: true, shouldAnimate: true, msaaSamples: 4, showRenderLoopErrors: false,
+  // Render at the display's real pixel density (Windows 125–200 % scaling) instead
+  // of upscaling a low-res image; QualityController lowers it if frames drop.
+  useBrowserRecommendedResolution: false,
+  // Ask for the discrete GPU on laptops with two.
+  contextOptions: { webgl: { powerPreference: "high-performance", alpha: false, stencil: true } },
   terrain: settings.get("ionToken") ? C.Terrain.fromWorldTerrain() : undefined,
 });
 window.viewer = viewer; // handy for debugging from DevTools
@@ -46,8 +51,11 @@ scene.globe.showGroundAtmosphere = true;
 scene.globe.depthTestAgainstTerrain = false;
 scene.skyAtmosphere.show = true;
 scene.fog.enabled = true;
-scene.globe.maximumScreenSpaceError = 1.6;
-scene.postProcessStages.fxaa.enabled = true;
+scene.globe.maximumScreenSpaceError = 1.5;  // a little more imagery detail
+scene.globe.tileCacheSize = 400;            // keep more tiles: less reloading while panning
+// FXAA blurs thin lines, labels and icons. Use real multisampling where the GPU
+// supports it (WebGL 2) and fall back to FXAA only when it doesn't.
+scene.postProcessStages.fxaa.enabled = !scene.msaaSupported;
 viewer.cesiumWidget.creditContainer.style.fontSize = "10px";
 
 const layers = viewer.imageryLayers;
@@ -91,6 +99,42 @@ viewer.camera.setView({ destination: C.Cartesian3.fromDegrees(35, 30, HOME_HEIGH
 viewer.homeButton.viewModel.command.beforeExecute.addEventListener((e) => {
   e.cancel = true;
   viewer.camera.flyTo({ destination: C.Cartesian3.fromDegrees(35, 30, HOME_HEIGHT), duration: 1.6 });
+});
+
+// ------------------------------------------------------------------ graphics quality
+// auto     native resolution, stepped down/up to hold ~45+ fps
+// high     always native resolution
+// balanced standard (CSS-pixel) resolution
+// low      reduced resolution and a 30 fps cap, for weak GPUs or battery
+const QUALITY = settings.get("quality");
+const DPR = window.devicePixelRatio || 1;
+const quality = { scale: 1, fps: 0, frames: 0, t0: performance.now(), cooldown: 0 };
+function applyQuality() {
+  viewer.targetFrameRate = QUALITY === "low" ? 30 : undefined;
+  if (QUALITY === "balanced") quality.scale = 1 / DPR;
+  else if (QUALITY === "low") quality.scale = Math.max(0.5, 0.75 / DPR);
+  else quality.scale = 1;
+  viewer.resolutionScale = quality.scale;
+  scene.postProcessStages.fxaa.enabled = !scene.msaaSupported || QUALITY === "low";
+  scene.msaaSamples = QUALITY === "low" ? 1 : 4;
+}
+applyQuality();
+scene.postRender.addEventListener(() => {
+  quality.frames++;
+  const now = performance.now();
+  if (now - quality.t0 < 2000) return;
+  quality.fps = (quality.frames * 1000) / (now - quality.t0);
+  quality.frames = 0;
+  quality.t0 = now;
+  if (QUALITY !== "auto" || document.hidden || now < quality.cooldown) return;
+  const min = 0.5 / DPR;
+  if (quality.fps < 40 && quality.scale > min + 1e-3) {
+    quality.scale = Math.max(min, quality.scale * 0.8);
+  } else if (quality.fps > 56 && quality.scale < 1 - 1e-3) {
+    quality.scale = Math.min(1, quality.scale * 1.15);
+  } else return;
+  viewer.resolutionScale = quality.scale;
+  quality.cooldown = now + 4000; // let it settle before deciding again
 });
 
 // ------------------------------------------------------------------ layers & feeds
@@ -468,6 +512,7 @@ function tickClock() {
   $("#st-alt").textContent = `eye ${h > 1e5 ? (h / 1000).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ",") + " km" : (h / 1000).toFixed(1) + " km"}`;
   const c = aircraftLayer.counts();
   $("#st-units").textContent = `${unitLayer.activeCount} animated scenes · ${c.mil} mil / ${c.civ} other aircraft`;
+  $("#st-fps").textContent = `${Math.round(quality.fps)} fps · ${(quality.scale * DPR).toFixed(2).replace(/\.?0+$/, "")}× res`;
   $("#st-route").textContent = demo ? "demo data" : `events via ${routeFor("http://data.gdeltproject.org/")} · aircraft via ${routeFor("https://api.adsb.lol/")}`;
   if (!demo && aircraftFeed) {
     $("#chip-mil b").textContent = c.mil;
@@ -516,6 +561,7 @@ $("#btn-settings").onclick = () => {
   $("#in-ion").value = settings.get("ionToken");
   $("#in-proxy").value = settings.get("proxyUrl");
   $("#in-demo").checked = settings.get("demo");
+  $("#in-quality").value = settings.get("quality");
   dlg.showModal();
 };
 dlg.addEventListener("close", () => {
@@ -524,6 +570,7 @@ dlg.addEventListener("close", () => {
   settings.set("ionToken", $("#in-ion").value.trim());
   settings.set("proxyUrl", $("#in-proxy").value.trim());
   settings.set("demo", $("#in-demo").checked);
+  settings.set("quality", $("#in-quality").value);
   const url = new URL(location.href);
   url.search = "";
   location.href = url.toString();

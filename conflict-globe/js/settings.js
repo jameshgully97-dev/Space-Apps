@@ -17,6 +17,7 @@ const DEFAULTS = {
   showBorders: true,
   showRadio: true,
   demo: false,
+  quality: "auto",
   hiddenCats: [],
   hiddenForces: [],
   hiddenStatus: ["filtered"],
@@ -44,3 +45,4 @@ const qs = new URLSearchParams(location.search);
 if (qs.has("demo")) state.demo = qs.get("demo") !== "0";
 if (qs.has("google")) state.googleKey = qs.get("google");
 if (qs.has("ion")) state.ionToken = qs.get("ion");
+if (["auto", "high", "balanced", "low"].includes(qs.get("quality"))) state.quality = qs.get("quality");

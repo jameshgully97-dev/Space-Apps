@@ -103,6 +103,20 @@ The folder is a static site and can be served from any web host (for example Git
 
 Without keys you get Esri World Imagery (satellite) with NASA Black Marble city lights on the night side. The sun's position and the day/night terminator follow real time.
 
+## Performance and sharpness
+
+* **Native resolution:** the globe renders at the display's real pixel density. Windows laptops at 125–200 % scaling no longer get an upscaled, blurry image.
+* **Anti-aliasing:** 4× multisampling is used instead of FXAA, which blurred thin lines, labels and icons. FXAA is used only on GPUs without WebGL 2.
+* **Sharp artwork and labels:** sprites are drawn at up to 2× pixel density. Labels are rendered at double size and scaled down.
+* **GPU:** the app asks for the high-performance (discrete) GPU and keeps a larger imagery tile cache, so panning reloads less.
+* **Cheaper markers:** only events reported in the last hour pulse. All other markers are static, which keeps per-frame work and re-clustering cheap.
+* **Graphics quality (Settings ⚙ or `?quality=`):**
+  * `auto` (default): starts at full resolution and steps it down when the frame rate drops below about 40 fps, then back up when there's headroom
+  * `high`: always full resolution
+  * `balanced`: standard resolution
+  * `low`: reduced resolution, capped at 30 fps
+* The status bar shows the current frame rate and render resolution.
+
 ## Controls
 
 Drag to rotate, scroll to zoom, right-drag or Ctrl-drag to tilt. Keys: `F` feed panel, `L` layers, `G` GhostNet panel, `H` home, `Esc` close details.

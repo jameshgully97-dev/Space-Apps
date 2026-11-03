@@ -123,7 +123,7 @@ dialog { background: var(--panel-solid); color: var(--text); border: 1px solid v
 dialog::backdrop { background: rgba(0,0,0,0.55); }
 dialog h3 { margin-top: 0; }
 dialog label:not(.toggle) { display: block; margin-bottom: 12px; }
-dialog label input:not([type="checkbox"]) { display: block; width: 100%; margin-top: 4px; }
+dialog label input:not([type="checkbox"]), dialog label select { display: block; width: 100%; margin-top: 4px; }
 dialog small { color: var(--muted); }
 dialog menu { display: flex; justify-content: flex-end; gap: 8px; padding: 0; margin: 14px 0 0; }
 dialog p { color: #c9d3dd; }
@@ -152,5 +152,5 @@ dialog p { color: #c9d3dd; }
   #legend { display: none; }
   #info { left: 10px; right: 10px; width: auto; }
   .chip { padding: 3px 7px; }
-  #statusbar span:nth-child(n+3) { display: none; }
+  #statusbar span:nth-child(n+3):not(#st-fps) { display: none; }
 }
